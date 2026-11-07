@@ -1,0 +1,14 @@
+# Local development only. Dokploy deploys docker-compose.yml alone.
+services:
+  caddy:
+    ports:
+      - "127.0.0.1:8080:8080"
+  api:
+    environment:
+      TRUST_PROXY_HOPS: 1
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"

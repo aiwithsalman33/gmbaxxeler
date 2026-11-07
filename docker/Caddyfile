@@ -1,0 +1,57 @@
+{
+	admin off
+	auto_https off
+	servers {
+		# Dokploy's proxy sits in front, so keep the X-Forwarded-For it sends.
+		trusted_proxies static private_ranges
+	}
+}
+
+:8080 {
+	encode zstd gzip
+
+	request_body {
+		max_size 50MB
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy {$API_UPSTREAM:api:4000}
+	}
+
+	# Public images only: read-only, inside public/, and only image files.
+	@media {
+		method GET HEAD
+		path_regexp media ^/media/(public/.+.(jpg|jpeg|png))$
+	}
+	handle @media {
+		rewrite * /{$MINIO_BUCKET:localpilot}/{re.media.1}
+		reverse_proxy {$MINIO_UPSTREAM:minio:9000} {
+			header_up Host {upstream_hostport}
+
+			# Long caching for real images only, so an error is never cached.
+			@ok status 2xx
+			handle_response @ok {
+				header Cache-Control "public, max-age=31536000, immutable"
+				header -X-Amz-Request-Id
+				header -X-Amz-Id-2
+				copy_response
+			}
+		}
+	}
+	handle /media/* {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy {$WEB_UPSTREAM:web:3000}
+	}
+}

@@ -1,0 +1,181 @@
+name: localpilot
+
+x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-development}
+  APP_URL: ${APP_URL:-http://localhost:8080}
+  API_URL: ${API_URL:-http://localhost:8080/api}
+  PUBLIC_MEDIA_URL: ${PUBLIC_MEDIA_URL:-http://localhost:8080/media}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-localpilot}:${POSTGRES_PASSWORD:-localpilot}@postgres:5432/${POSTGRES_DB:-localpilot}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:-ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=}
+  GBP_ADAPTER: ${GBP_ADAPTER:-mock}
+  AI_ADAPTER: ${AI_ADAPTER:-mock}
+  MINIO_ENDPOINT: http://minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-localpilot}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-localpilot-dev-secret}
+  MINIO_BUCKET: ${MINIO_BUCKET:-localpilot}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  MAIL_PROVIDER: ${MAIL_PROVIDER:-dev}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-465}
+  SMTP_SECURE: ${SMTP_SECURE:-true}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+  MAIL_DAILY_CAP: ${MAIL_DAILY_CAP:-300}
+  WHATSAPP_WEBHOOK_URL: ${WHATSAPP_WEBHOOK_URL:-}
+  SMS_WEBHOOK_URL: ${SMS_WEBHOOK_URL:-}
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      MINIO_BUCKET: ${MINIO_BUCKET:-localpilot}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    expose:
+      - "8080"
+    networks:
+      - backend
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-localpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localpilot}
+      POSTGRES_DB: ${POSTGRES_DB:-localpilot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    # Community fork, because upstream MinIO is archived. See docs/storage-decision.md.
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-localpilot}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-localpilot-dev-secret}
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      PORT: 4000
+      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-me-0123456789}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-2}
+      SIGNUP_ALLOWED_EMAILS: ${SIGNUP_ALLOWED_EMAILS:-admin@localpilot.dev}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+    networks:
+      - backend
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "const f=require('fs');process.exit(Date.now()-f.statSync('/tmp/worker-heartbeat').mtimeMs<90000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    networks:
+      - backend
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  # Writes a compressed database dump to the backups volume every day and keeps 14.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-localpilot}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-localpilot}
+      PGDATABASE: ${POSTGRES_DB:-localpilot}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - backups:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
+    entrypoint: ["sh", "-c", "while true; do sh /usr/local/bin/backup.sh; sleep 86400; done"]
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# Containers need outbound access for Google, OpenAI and SMTP, so this is a
+# private bridge with no published ports rather than an isolated network.
+networks:
+  backend:
+
+volumes:
+  backups:
+  caddy_data:
+  postgres_data:
+  minio_data:

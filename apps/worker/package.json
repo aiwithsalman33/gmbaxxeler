@@ -1,0 +1,22 @@
+{
+  "name": "@localpilot/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@localpilot/crypto": "workspace:*",
+    "@localpilot/db": "workspace:*",
+    "@localpilot/gbp": "workspace:*",
+    "@localpilot/notify": "workspace:*",
+    "@localpilot/services": "workspace:*",
+    "pg-boss": "^10.3.2",
+    "pino": "^9.7.0",
+    "@localpilot/storage": "workspace:*"
+  }
+}
