@@ -92,7 +92,9 @@ services:
       retries: 20
 
   api:
-    image: ${IMAGE_PREFIX:-ghcr.io/aiwithsalman33/gmbaxxeler}-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/aiwithsalman33/localpilot-api:${IMAGE_TAG:-latest}
+    # :latest moves on each push, so always check for a newer image.
+    pull_policy: always
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -119,7 +121,9 @@ services:
       start_period: 60s
 
   worker:
-    image: ${IMAGE_PREFIX:-ghcr.io/aiwithsalman33/gmbaxxeler}-worker:${IMAGE_TAG:-latest}
+    image: ghcr.io/aiwithsalman33/localpilot-worker:${IMAGE_TAG:-latest}
+    # :latest moves on each push, so always check for a newer image.
+    pull_policy: always
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -136,7 +140,9 @@ services:
       start_period: 60s
 
   web:
-    image: ${IMAGE_PREFIX:-ghcr.io/aiwithsalman33/gmbaxxeler}-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/aiwithsalman33/localpilot-web:${IMAGE_TAG:-latest}
+    # :latest moves on each push, so always check for a newer image.
+    pull_policy: always
     restart: unless-stopped
     networks:
       - backend

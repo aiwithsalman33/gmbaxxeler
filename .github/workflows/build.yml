@@ -1,5 +1,5 @@
 # Builds on GitHub, so a small server only has to pull finished images.
-name: Build images
+name: Build
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE_PREFIX: ghcr.io/aiwithsalman33/gmbaxxeler
+  IMAGE_PREFIX: ghcr.io/aiwithsalman33/localpilot
 
 jobs:
   check:
@@ -52,6 +52,8 @@ jobs:
           file: docker/Dockerfile
           target: ${{ matrix.service }}
           push: true
+          # Links each package to this repository, so it inherits its visibility.
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           tags: |
             ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest
             ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }}

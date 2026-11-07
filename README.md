@@ -118,12 +118,29 @@ While the OAuth consent screen is in Testing mode, refresh tokens expire after 7
 
 The real adapter has been tested against a fake Google server, not live Google.
 
-## Building on a small server
+## Deploying prebuilt images
 
-All three images come from one `docker/Dockerfile`, so dependencies install and `prisma generate` runs once. On a small VPS, either limit the build or skip it:
+GitHub Actions builds the web, API and worker images on every push to `main`, so the server never builds anything. Images go to `ghcr.io/aiwithsalman33/localpilot-web`, `-api` and `-worker`, tagged `:latest` and with the commit SHA.
 
-- **Limit it:** set `COMPOSE_PARALLEL_LIMIT=1` and `COMPOSE_BAKE=false` in the Dokploy environment, so images build one at a time.
-- **Skip it:** let GitHub Actions build the images and use `docker-compose.prod.yml`. See "Prebuilt images" in [docs/deploy-dokploy.md](docs/deploy-dokploy.md). This is the better choice under about 4 GB of RAM.
+**First-time setup**
+
+1. In Dokploy, keep the Git source and set the compose path to `docker-compose.prod.yml`.
+2. The packages inherit this repository's public visibility. If they're ever private, make them public under your GitHub profile's **Packages**, or add `ghcr.io` in Dokploy under **Registry**, using a GitHub token with `read:packages`.
+
+**Redeploy after a push**
+
+1. Wait for **Build** to go green in the GitHub **Actions** tab.
+2. Click **Deploy** in Dokploy. It pulls the new `:latest` images and runs any migrations.
+
+**Roll back**
+
+1. Find the commit in the **Actions** tab and copy its full SHA.
+2. Set `IMAGE_TAG=<sha>` in the Dokploy environment and click **Deploy**.
+3. Remove `IMAGE_TAG` to return to `:latest`.
+
+Migrations don't roll back with the image, so restore a backup if the old code can't read the newer database.
+
+To build on the server instead, use `docker-compose.yml` and set `COMPOSE_PARALLEL_LIMIT=1` and `COMPOSE_BAKE=false`. That isn't recommended on a small VPS.
 
 ## Troubleshooting deploy
 

@@ -21,7 +21,7 @@ Only `caddy` is reachable from outside. `web`, `api`, `worker`, `postgres` and `
 
 1. In Dokploy, create a project, then add a **Compose** service.
 2. Point it at this repository's `main` branch.
-3. Set the compose path to `docker-compose.yml`.
+3. Set the compose path to `docker-compose.prod.yml`.
 
 `docker-compose.override.yml` is for local use and publishes ports. Confirm your Dokploy deploy command names `docker-compose.yml` with `-f`, so the override isn't loaded. You can check this under the service's deployment logs.
 
@@ -118,14 +118,7 @@ Test with one real profile first: one photo, one post and one review reply.
 
 ## Prebuilt images
 
-Use this if the build stops or gets cancelled on your server. GitHub builds the images on each push to `main`, and the server only pulls them.
-
-1. Push to `main`, then check the **Actions** tab on GitHub until **Build images** is green.
-2. On GitHub, open each of the three packages (`gmbaxxeler-api`, `-worker`, `-web`) under your profile's **Packages**, and set its visibility to public. If you keep them private, add `ghcr.io` in Dokploy under **Registry** with a GitHub token that has `read:packages`.
-3. In Dokploy, change the compose path to `docker-compose.prod.yml`.
-4. Deploy. To pin a version, set `IMAGE_TAG` to a commit SHA. It defaults to `latest`.
-
-The compose file and `docker/Caddyfile` still come from the repository, so keep the Git source in Dokploy.
+The server shouldn't build anything. See "Deploying prebuilt images" in the [README](../README.md) for setup, redeploying and rolling back.
 
 ## Backups
 
