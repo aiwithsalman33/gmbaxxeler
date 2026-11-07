@@ -1,5 +1,5 @@
 import type { Client, FolderKind, GoogleConnection, MatchMethod } from "@localpilot/db";
-import { matchLocation } from "@localpilot/core";
+import { normalizeName } from "@localpilot/core";
 import { GbpError, type GbpLocation } from "@localpilot/gbp";
 import { notify, PENDING_STATUSES, sessionFor, agencyConnection, type Deps } from "./context";
 import { syncClient } from "./sync";
@@ -127,8 +127,9 @@ export async function attachInviteLocations(deps: Deps, connection: GoogleConnec
 
   const target = clientId ? await deps.db.client.findUnique({ where: { id: clientId } }) : null;
   if (target) {
-    const matched = free.find((location) => matchLocation(location, [target]).kind === "match");
-    const location = matched ?? (free.length === 1 ? free[0] : undefined);
+    // The client signed in themselves, so the business name is enough here.
+    const named = free.find((location) => normalizeName(location.title) === normalizeName(target.name));
+    const location = named ?? (free.length === 1 ? free[0] : undefined);
     if (location) await bindClient(deps, { client: target, connection, location, method: "oauth" });
     return;
   }

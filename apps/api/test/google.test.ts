@@ -3,7 +3,7 @@ import { checkConnections, connectionTokens, syncClient } from "@localpilot/serv
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createState, consumeState } from "../src/oauth-state";
 import { createFakeGoogle } from "./fake-google";
-import { connectGoogle, cookiesFrom, createHarness, login, OTHER_EMAIL, PASSWORD, resetDb, type Cookies, type Harness } from "./helpers";
+import { connectGoogle, cookiesFrom, createHarness, login, PASSWORD, resetDb, type Cookies, type Harness } from "./helpers";
 
 const AGENCY = "baranikumargd2@gmail.com";
 const realEnv = { GBP_ADAPTER: "real", GOOGLE_CLIENT_ID: "client-id", GOOGLE_CLIENT_SECRET: "client-secret", AGENCY_GOOGLE_EMAIL: AGENCY, SIGNUP_ALLOWED_EMAILS: "owner@example.com,axxeler@gmail.com" };
@@ -236,16 +236,14 @@ describe("credentials", () => {
 
   it("tests credentials without signing in", async () => {
     expect((await api("POST", "/settings/google/credentials/test")).json()).toEqual({ status: "valid" });
-    await api("PUT", "/settings/google/credentials", { clientId: "x", clientSecret: "wrong" });
+    await api("PUT", "/settings/google/credentials", { clientId: "client-x", clientSecret: "wrong" });
     expect((await api("POST", "/settings/google/credentials/test")).json()).toEqual({ status: "invalid" });
   });
 
   it("is owner-only", async () => {
-    const other = await login(h, OTHER_EMAIL);
-    await h.ctx.db.workspaceMember.updateMany({ where: { user: { email: OTHER_EMAIL } }, data: { role: "member" } });
-    const relogin = await login(h, OTHER_EMAIL);
-    expect(other).toBeTruthy();
-    expect((await api("PUT", "/settings/google/credentials", { clientId: "x", clientSecret: "y" }, relogin)).statusCode).toBe(403);
+    await h.ctx.db.workspaceMember.updateMany({ data: { role: "member" } });
+    const member = await login(h);
+    expect((await api("PUT", "/settings/google/credentials", { clientId: "client-x", clientSecret: "y" }, member)).statusCode).toBe(403);
   });
 });
 
