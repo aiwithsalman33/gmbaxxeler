@@ -52,7 +52,7 @@ export const updateImageSchema = z.object({
 });
 export const bulkMoveSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(200), folder: folderKindSchema });
 
-const ctaTypeSchemaBase = z.enum(["LEARN_MORE", "BOOK", "ORDER", "SHOP", "SIGN_UP", "CALL"]);
+const ctaTypeSchema = z.enum(["LEARN_MORE", "BOOK", "ORDER", "SHOP", "SIGN_UP", "CALL"]);
 
 /** COVER and PROFILE are left out: they replace a profile's main images. */
 export const PHOTO_CATEGORIES = ["ADDITIONAL", "EXTERIOR", "INTERIOR", "PRODUCT", "AT_WORK", "FOOD_AND_DRINK", "MENU", "COMMON_AREA", "ROOMS", "TEAMS"] as const;
@@ -106,7 +106,7 @@ export const seoScheduleSchema = photoScheduleSchema
     countPerDay: z.number().int().min(1).max(5),
     seoMode: z.enum(["auto", "draft"]).default("draft"),
     draftLeadHours: z.number().int().min(1).max(168).default(48),
-    ctaType: ctaTypeSchemaBase.default("LEARN_MORE"),
+    ctaType: ctaTypeSchema.default("LEARN_MORE"),
     ctaUrl: z.string().url().nullable().optional(),
   })
   .superRefine((value, ctx) => {
@@ -114,7 +114,7 @@ export const seoScheduleSchema = photoScheduleSchema
   });
 
 export const updatePostSchema = z
-  .object({ summary: z.string().trim().min(1).max(1500), ctaType: ctaTypeSchemaBase, ctaUrl: z.string().url().nullable().optional() })
+  .object({ summary: z.string().trim().min(1).max(1500), ctaType: ctaTypeSchema, ctaUrl: z.string().url().nullable().optional() })
   .superRefine((post, ctx) => {
     if (post.ctaType === "CALL" && post.ctaUrl) ctx.addIssue({ code: "custom", path: ["ctaUrl"], message: "Call buttons use the profile phone number" });
     if (post.ctaType !== "CALL" && !post.ctaUrl) ctx.addIssue({ code: "custom", path: ["ctaUrl"], message: "A link is required for this button" });
@@ -158,27 +158,3 @@ export const LIBRARY_LIMITS = {
   minDimension: 250,
   mimeTypes: ["image/jpeg", "image/png"],
 } as const;
-
-/** GBP post rules, enforced in Phase 3. A standard post has no title field in LocalPost. */
-export const POST_RULES = { maxChars: 1500, targetMinWords: 150, targetMaxWords: 230 } as const;
-export const ctaTypeSchema = ctaTypeSchemaBase;
-
-export const seoPostSchema = z
-  .object({
-    postType: z.enum(["standard", "event", "offer"]).default("standard"),
-    summary: z.string().trim().min(1).max(POST_RULES.maxChars),
-    ctaType: ctaTypeSchema.default("LEARN_MORE"),
-    ctaUrl: z.string().url().optional(),
-    title: z.string().trim().max(58).optional(),
-  })
-  .superRefine((post, ctx) => {
-    if (post.postType === "standard" && post.title) {
-      ctx.addIssue({ code: "custom", path: ["title"], message: "Standard posts have no title" });
-    }
-    if (post.ctaType === "CALL" && post.ctaUrl) {
-      ctx.addIssue({ code: "custom", path: ["ctaUrl"], message: "Call buttons use the profile phone number" });
-    }
-    if (post.ctaType !== "CALL" && !post.ctaUrl) {
-      ctx.addIssue({ code: "custom", path: ["ctaUrl"], message: "A link is required for this button" });
-    }
-  });
