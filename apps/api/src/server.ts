@@ -13,7 +13,12 @@ const ctx = createContext(
   (message) => process.stdout.write(`${message}\n`),
 );
 
-await ctx.storage.ensureBucket();
+try {
+  await ctx.storage.ensureBucket();
+} catch {
+  process.stderr.write("Can't reach storage. Check that minio is running and MINIO_ACCESS_KEY and MINIO_SECRET_KEY match what it first started with.\n");
+  process.exit(1);
+}
 await seedAdmin(ctx);
 const app = await buildApp(ctx);
 await app.listen({ port: env.PORT, host: "0.0.0.0" });

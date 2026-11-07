@@ -132,7 +132,7 @@ describe("login", () => {
   });
 
   it("marks cookies Secure in production", async () => {
-    const prod = await createHarness({ APP_ENV: "production", AI_ADAPTER: "openai", MAIL_PROVIDER: "smtp", SMTP_HOST: "smtp.example.com", SMTP_USER: "u", SMTP_PASS: "p", MAIL_FROM: "x@example.com", SEED_ADMIN_EMAIL: "", SEED_ADMIN_PASSWORD: "" });
+    const prod = await createHarness({ APP_ENV: "production", AI_ADAPTER: "openai", GBP_ADAPTER: "real", GOOGLE_CLIENT_ID: "id", GOOGLE_CLIENT_SECRET: "secret", MAIL_PROVIDER: "smtp", SMTP_HOST: "smtp.example.com", SMTP_USER: "u", SMTP_PASS: "p", MAIL_FROM: "x@example.com", SEED_ADMIN_EMAIL: "", SEED_ADMIN_PASSWORD: "" });
     const email = ALLOWED_EMAIL;
     const { hashPassword } = await import("@localpilot/crypto");
     const user = await h.ctx.db.user.create({ data: { email, passwordHash: await hashPassword(PASSWORD), emailVerifiedAt: new Date() } });

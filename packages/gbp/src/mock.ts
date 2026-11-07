@@ -73,13 +73,13 @@ function seededLocation(n: number, title: string, city: string, overrides: Parti
   };
 }
 
-function initialState(): MockState {
+function initialState(sample: boolean): MockState {
   return {
     seeded: true,
     tokenRevoked: false,
     sequence: 100,
     invitations: [],
-    locations: [
+    locations: !sample ? [] : [
       seededLocation(1, "Sunrise Dental Clinic", "Chennai"),
       seededLocation(2, "Green Leaf Cafe", "Bengaluru", { description: "Fresh coffee.", attributes: 0 }),
       seededLocation(3, "Metro Fitness Studio", "Coimbatore", { website: null, services: [] }),
@@ -93,10 +93,10 @@ function hashNumber(value: string): number {
   return createHash("sha256").update(value).digest().readUInt32BE(0);
 }
 
-async function loadState(db: Db, workspaceId: string): Promise<MockState> {
+async function loadState(db: Db, sample: boolean, workspaceId: string): Promise<MockState> {
   const row = await db.mockGbpState.findUnique({ where: { workspaceId } });
   const state = row?.state as unknown as Partial<MockState> | undefined;
-  return state?.seeded ? (state as MockState) : initialState();
+  return state?.seeded ? (state as MockState) : initialState(sample);
 }
 
 async function saveState(db: Db, workspaceId: string, state: MockState): Promise<void> {
@@ -105,11 +105,11 @@ async function saveState(db: Db, workspaceId: string, state: MockState): Promise
 }
 
 /** Locks the row, so the API and worker can't overwrite each other's changes. */
-async function mutate(db: Db, workspaceId: string, change: (state: MockState) => void): Promise<void> {
+async function mutate(db: Db, sample: boolean, workspaceId: string, change: (state: MockState) => void): Promise<void> {
   await db.$transaction(async (tx) => {
     await tx.$executeRaw`INSERT INTO mock_gbp_state (workspace_id, updated_at) VALUES (${workspaceId}::uuid, now()) ON CONFLICT DO NOTHING`;
     const [row] = await tx.$queryRaw<{ state: Partial<MockState> }[]>`SELECT state FROM mock_gbp_state WHERE workspace_id = ${workspaceId}::uuid FOR UPDATE`;
-    const state = row?.state.seeded ? (row.state as MockState) : initialState();
+    const state = row?.state.seeded ? (row.state as MockState) : initialState(sample);
     change(state);
     await tx.mockGbpState.update({ where: { workspaceId }, data: { state: state as unknown as object } });
   });
@@ -118,11 +118,12 @@ async function mutate(db: Db, workspaceId: string, change: (state: MockState) =>
 class MockSession implements GbpSession {
   constructor(
     private readonly db: Db,
+    private readonly sample: boolean,
     private readonly workspaceId: string,
   ) {}
 
   private async state(): Promise<MockState> {
-    const state = await loadState(this.db, this.workspaceId);
+    const state = await loadState(this.db, this.sample, this.workspaceId);
     if (state.tokenRevoked) throw new GbpError("auth_revoked", "Mock authorization revoked");
     return state;
   }
@@ -172,7 +173,7 @@ class MockSession implements GbpSession {
     await this.location(upload.locationId);
     let name = "";
     let failing = false;
-    await mutate(this.db, this.workspaceId, (state) => {
+    await mutate(this.db, this.sample, this.workspaceId, (state) => {
       if ((state.failUploads ?? 0) > 0) {
         state.failUploads! -= 1;
         failing = true;
@@ -190,7 +191,7 @@ class MockSession implements GbpSession {
     await this.location(post.locationId);
     let name = "";
     let failing = false;
-    await mutate(this.db, this.workspaceId, (state) => {
+    await mutate(this.db, this.sample, this.workspaceId, (state) => {
       if ((state.failUploads ?? 0) > 0) {
         state.failUploads! -= 1;
         failing = true;
@@ -207,7 +208,7 @@ class MockSession implements GbpSession {
   async listReviews(_accountId: string, locationId: string): Promise<GbpReview[]> {
     await this.location(locationId);
     let reviews: MockReview[] = [];
-    await mutate(this.db, this.workspaceId, (state) => {
+    await mutate(this.db, this.sample, this.workspaceId, (state) => {
       state.reviews ??= {};
       state.reviews[locationId] ??= seedReviews(locationId);
       reviews = state.reviews[locationId];
@@ -217,7 +218,7 @@ class MockSession implements GbpSession {
 
   async replyToReview(_accountId: string, locationId: string, reviewId: string, comment: string): Promise<void> {
     await this.location(locationId);
-    await mutate(this.db, this.workspaceId, (state) => {
+    await mutate(this.db, this.sample, this.workspaceId, (state) => {
       const review = state.reviews?.[locationId]?.find((item) => item.reviewId === reviewId);
       if (review) review.replyComment = comment;
       state.replies ??= [];
@@ -255,7 +256,11 @@ class MockSession implements GbpSession {
 export class MockGbpAdapter implements GbpAdapter {
   readonly name = "mock" as const;
 
-  constructor(private readonly db: Db) {}
+  /** With sample off, the fake account has no businesses until an invitation arrives. */
+  constructor(
+    private readonly db: Db,
+    private readonly sample = false,
+  ) {}
 
   authUrl(state: string, redirectUri: string): string {
     return `${redirectUri}?code=mock-code&state=${encodeURIComponent(state)}`;
@@ -265,13 +270,13 @@ export class MockGbpAdapter implements GbpAdapter {
     const scopes = ["https://www.googleapis.com/auth/business.manage"];
     if (context.purpose === "invite") {
       let n = 0;
-      await mutate(this.db, context.workspaceId, (state) => {
+      await mutate(this.db, this.sample, context.workspaceId, (state) => {
         n = state.sequence += 1;
         state.locations.push(seededLocation(n, context.businessName ?? "Invited Client Business", "Chennai"));
       });
       return { refreshToken: `mock-client-token-${n}`, email: `client-${n}@example.com`, subject: `mock-client-${n}`, scopes };
     }
-    await mutate(this.db, context.workspaceId, (state) => {
+    await mutate(this.db, this.sample, context.workspaceId, (state) => {
       state.tokenRevoked = false;
     });
     return { refreshToken: "mock-refresh-token", email: MOCK_AGENCY_EMAIL, subject: "mock-agency-subject", scopes };
@@ -280,13 +285,13 @@ export class MockGbpAdapter implements GbpAdapter {
   async revoke(): Promise<void> {}
 
   session(context: GbpSessionContext): GbpSession {
-    return new MockSession(this.db, context.workspaceId);
+    return new MockSession(this.db, this.sample, context.workspaceId);
   }
 
   /** Simulates a client adding the agency Gmail under People and access. */
   async simulateInvitation(workspaceId: string, input: { locationName: string; address?: string | null }): Promise<string> {
     let name = "";
-    await mutate(this.db, workspaceId, (state) => {
+    await mutate(this.db, this.sample, workspaceId, (state) => {
       const n = (state.sequence += 1);
       name = `accounts/${ACCOUNT.accountId}/invitations/${n}`;
       state.invitations.push({
@@ -304,37 +309,37 @@ export class MockGbpAdapter implements GbpAdapter {
 
   /** Simulates the client removing the agency, so the next sync gets a 403. */
   async simulateRevokeLocation(workspaceId: string, locationId: string): Promise<void> {
-    await mutate(this.db, workspaceId, (state) => {
+    await mutate(this.db, this.sample, workspaceId, (state) => {
       const location = state.locations.find((l) => l.locationId === locationId);
       if (location) location.revoked = true;
     });
   }
 
   async simulateRestoreLocation(workspaceId: string, locationId: string): Promise<void> {
-    await mutate(this.db, workspaceId, (state) => {
+    await mutate(this.db, this.sample, workspaceId, (state) => {
       const location = state.locations.find((l) => l.locationId === locationId);
       if (location) location.revoked = false;
     });
   }
 
   async simulateUploadFailures(workspaceId: string, count: number): Promise<void> {
-    await mutate(this.db, workspaceId, (state) => {
+    await mutate(this.db, this.sample, workspaceId, (state) => {
       state.failUploads = count;
     });
   }
 
   async listPosts(workspaceId: string): Promise<(PostPublish & { name: string })[]> {
-    return (await loadState(this.db, workspaceId)).posts ?? [];
+    return (await loadState(this.db, this.sample, workspaceId)).posts ?? [];
   }
 
   async listReplies(workspaceId: string): Promise<{ reviewId: string; comment: string }[]> {
-    return (await loadState(this.db, workspaceId)).replies ?? [];
+    return (await loadState(this.db, this.sample, workspaceId)).replies ?? [];
   }
 
   /** Simulates a customer leaving a new review. */
   async simulateReview(workspaceId: string, locationId: string, input: { rating: number; text: string | null; name?: string }): Promise<string> {
     let reviewId = "";
-    await mutate(this.db, workspaceId, (state) => {
+    await mutate(this.db, this.sample, workspaceId, (state) => {
       reviewId = `${locationId}-new-${(state.sequence += 1)}`;
       state.reviews ??= {};
       state.reviews[locationId] ??= seedReviews(locationId);
@@ -344,11 +349,11 @@ export class MockGbpAdapter implements GbpAdapter {
   }
 
   async listUploads(workspaceId: string): Promise<(PhotoUpload & { name: string })[]> {
-    return (await loadState(this.db, workspaceId)).uploads ?? [];
+    return (await loadState(this.db, this.sample, workspaceId)).uploads ?? [];
   }
 
   async simulateTokenRevoked(workspaceId: string): Promise<void> {
-    await mutate(this.db, workspaceId, (state) => {
+    await mutate(this.db, this.sample, workspaceId, (state) => {
       state.tokenRevoked = true;
     });
   }

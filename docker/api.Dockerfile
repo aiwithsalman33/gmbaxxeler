@@ -39,6 +39,7 @@ COPY --from=prod /app/node_modules ./node_modules
 COPY --from=build /app/packages/db/prisma ./packages/db/prisma
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build /app/docker/api-entrypoint.sh ./docker/api-entrypoint.sh
 EXPOSE 4000
 USER node
-CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy --schema packages/db/prisma/schema.prisma && exec node apps/api/dist/server.js"]
+CMD ["sh", "docker/api-entrypoint.sh"]

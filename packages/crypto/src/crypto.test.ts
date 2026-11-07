@@ -23,6 +23,12 @@ describe("encryptSecret", () => {
     expect(() => decryptSecret(encryptSecret("secret", key), randomBytes(32))).toThrow();
   });
 
+  it("accepts hex and base64 keys", () => {
+    const raw = randomBytes(32);
+    expect(parseKey(raw.toString("hex"))).toEqual(raw);
+    expect(parseKey(raw.toString("base64"))).toEqual(raw);
+  });
+
   it("rejects keys of the wrong length", () => {
     expect(() => parseKey(Buffer.from("short").toString("base64"))).toThrow(/32 bytes/);
   });

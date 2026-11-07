@@ -53,6 +53,7 @@ const deps: Deps = {
     db,
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    mockSample: process.env.MOCK_SAMPLE_DATA === "true",
   }),
   messenger: new Messenger({
     mode: mailProvider === "dev" ? "dev" : "live",

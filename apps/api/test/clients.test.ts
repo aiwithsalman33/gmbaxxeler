@@ -1,6 +1,7 @@
 import { MockGbpAdapter } from "@localpilot/gbp";
 import { sendDueReminders, syncClient } from "@localpilot/services";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { loadEnv } from "../src/config";
 import { connectGoogle, createHarness, login, OTHER_EMAIL, resetDb, type Cookies, type Harness } from "./helpers";
 
 let h: Harness;
@@ -209,6 +210,45 @@ describe("workspace isolation", () => {
     const [invitation] = (await api("GET", "/invitations")).json();
     const other = await login(h, OTHER_EMAIL);
     expect((await api("POST", `/invitations/${invitation.id}/decline`, undefined, other)).statusCode).toBe(404);
+  });
+});
+
+describe("mock data", () => {
+  it("starts empty unless sample data is switched on", async () => {
+    const empty = await createHarness({ MOCK_SAMPLE_DATA: "false" });
+    await resetDb(empty);
+    empty.mail.length = 0;
+    const session = await login(empty);
+    await connectGoogle(empty, session);
+    const response = await empty.app.inject({ method: "GET", url: "/api/v1/locations/unattached", cookies: session });
+    expect(response.json()).toEqual([]);
+    await empty.app.close();
+    await empty.ctx.db.$disconnect();
+  });
+
+  it("is refused in production", () => {
+    const production = {
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://x",
+      JWT_SECRET: "a-long-production-secret-of-32-chars-plus",
+      ENCRYPTION_KEY: "ab".repeat(32),
+      GOOGLE_CLIENT_ID: "id",
+      GOOGLE_CLIENT_SECRET: "secret",
+      APP_URL: "https://x.example",
+      API_URL: "https://x.example/api",
+      PUBLIC_MEDIA_URL: "https://x.example/media",
+      MINIO_ENDPOINT: "http://minio:9000",
+      MINIO_ACCESS_KEY: "a",
+      MINIO_SECRET_KEY: "b",
+      MAIL_PROVIDER: "smtp",
+      SMTP_HOST: "h",
+      SMTP_USER: "u",
+      SMTP_PASS: "p",
+      MAIL_FROM: "x@example.com",
+      AI_ADAPTER: "openai",
+    };
+    expect(() => loadEnv({ ...production, GBP_ADAPTER: "mock" })).toThrow(/GBP_ADAPTER cannot be mock/);
+    expect(() => loadEnv({ ...production, GBP_ADAPTER: "real" })).not.toThrow();
   });
 });
 

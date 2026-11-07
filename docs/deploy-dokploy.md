@@ -27,13 +27,10 @@ Only `caddy` is reachable from outside. `web`, `api`, `worker`, `postgres` and `
 
 ## 2. Set environment variables
 
-Generate the secrets on any machine:
+Generate four secrets on any machine, running this once for each of `JWT_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD` and `MINIO_SECRET_KEY`:
 
 ```sh
-openssl rand -base64 48   # JWT_SECRET
-openssl rand -base64 32   # ENCRYPTION_KEY
-openssl rand -hex 24      # POSTGRES_PASSWORD
-openssl rand -hex 24      # MINIO_SECRET_KEY
+openssl rand -hex 32
 ```
 
 Back up `ENCRYPTION_KEY` somewhere safe. Stored Google tokens and OpenAI keys can't be read without it.
@@ -67,12 +64,14 @@ MAIL_FROM="LocalPilot <aiwithsalman33@gmail.com>"
 MAIL_DAILY_CAP=300
 
 AI_ADAPTER=openai
-GBP_ADAPTER=mock
+GBP_ADAPTER=real
+GOOGLE_CLIENT_ID=<from Google Cloud>
+GOOGLE_CLIENT_SECRET=<from Google Cloud>
 ```
 
-The API refuses to start in production with development secrets, `MAIL_PROVIDER=dev`, `AI_ADAPTER=mock`, or missing SMTP settings.
+The API refuses to start in production with development secrets, `MAIL_PROVIDER=dev`, a mock adapter, or missing SMTP settings. Mock data can't appear on the live site.
 
-Keep `GBP_ADAPTER=mock` until Google approves your API access.
+Create the OAuth credentials before deploying. Google calls fail with a quota error until your API access is approved.
 
 `SEED_ADMIN_*` creates a verified owner on first start, so you can log in before email is confirmed working. It never changes an existing account. You can clear the password from Dokploy after your first login.
 
@@ -110,7 +109,7 @@ If the health check gets a 502, or requests from the same IP lock out unrelated 
 2. In Google Cloud, check your quota. 0 means not approved yet, 300 means approved.
 3. Enable the Business Profile APIs and create OAuth credentials.
 4. Add this redirect URI: `https://gmb.axxeler.in/api/v1/google/oauth/callback`
-5. Set `GBP_ADAPTER=real`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then redeploy.
+5. Check `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set, then redeploy.
 
 Test with one real profile first: one photo, one post and one review reply.
 

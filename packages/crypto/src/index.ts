@@ -4,9 +4,10 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes }
 
 const VERSION = "v1";
 
-export function parseKey(base64Key: string): Buffer {
-  const key = Buffer.from(base64Key, "base64");
-  if (key.length !== 32) throw new Error("ENCRYPTION_KEY must be 32 bytes, base64-encoded");
+/** Accepts 64 hex characters or base64, either way 32 bytes. */
+export function parseKey(value: string): Buffer {
+  const key = /^[0-9a-f]{64}$/i.test(value) ? Buffer.from(value, "hex") : Buffer.from(value, "base64");
+  if (key.length !== 32) throw new Error("ENCRYPTION_KEY must be 32 bytes. Generate one with: openssl rand -hex 32");
   return key;
 }
 

@@ -40,6 +40,7 @@ export async function createHarness(overrides: Record<string, string> = {}): Pro
     MINIO_SECRET_KEY: process.env.TEST_S3_SECRET_KEY ?? "localpilot-dev-secret",
     MINIO_BUCKET: "localpilot-test",
     AI_ADAPTER: "mock",
+    MOCK_SAMPLE_DATA: "true",
     RATE_LIMIT_MAX: "100000",
     LOGIN_RATE_LIMIT_MAX: "100000",
     ...overrides,

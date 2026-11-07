@@ -32,6 +32,8 @@ Five wrong passwords lock an account for 15 minutes. Forgot password works from 
 
 ### Try the client flow with the mock adapter
 
+The mock Google account starts empty. Add `MOCK_SAMPLE_DATA=true` to your local `.env` before first connecting Google to get sample businesses, reviews and metrics. Tests use these too. Production refuses the mock adapter.
+
 1. In **Account Settings**, choose **Connect Google**.
 2. In **Clients**, tick three locations and import them. Switch between them from the top-right dropdown.
 3. Choose **Add client** and enter a business name and an email or mobile number. **Send invite by email** sends the guide. **Copy message** is there for WhatsApp.
@@ -107,6 +109,34 @@ Set `GBP_ADAPTER=real` with OAuth credentials, and add `https://gmb.axxeler.in/a
 
 The real adapter has unit tests against stubbed responses. It has not run against live Google yet.
 
+## Troubleshooting deploy
+
+When a deploy says `container api is unhealthy`, the reason is in the API's log:
+
+```sh
+docker ps -a --filter name=api                    # find the container name
+docker logs <api-container-name> --tail 40        # read the reason
+docker inspect --format '{{json .State.Health}}' <api-container-name>   # health check results
+free -m && df -h /                                # memory and disk
+```
+
+| Log says | Cause | Fix |
+|---|---|---|
+| `LocalPilot can't start`, then a list | Listed variables are missing or invalid | Fix each one. Only names are printed, never values |
+| `Authentication failed` or `P1000` | The postgres volume kept its first password | Restore that password, or delete the volume, which erases its data |
+| `invalid port` or a database URL error | `POSTGRES_PASSWORD` has characters like `@ : / #` | Use `openssl rand -hex 32`, or URL-encode it in `DATABASE_URL` |
+| `Can't reach storage` | MinIO is down, or its volume kept older credentials | Check `minio` is healthy, or delete its volume |
+| `Killed`, or very low free memory | The server ran out of memory | Allow at least 4 GB of RAM |
+| No log lines, only unhealthy | The container hasn't started or the health check timed out | Check the `docker inspect` output above |
+
+Changing `POSTGRES_PASSWORD` or `MINIO_SECRET_KEY` after the first start doesn't change the password stored in the volume.
+
+To start again from nothing on a deployment with no real data:
+
+```sh
+docker compose -p <project-name> down -v
+```
+
 ## Deploying to Dokploy
 
 Full steps are in [docs/deploy-dokploy.md](docs/deploy-dokploy.md). In short:
@@ -116,4 +146,4 @@ Full steps are in [docs/deploy-dokploy.md](docs/deploy-dokploy.md). In short:
 3. In **Domains**, set `gmb.axxeler.in` to service `caddy`, port `8080`, with HTTPS on.
 4. Deploy, then check `https://gmb.axxeler.in/api/health`.
 
-The API refuses to start with `APP_ENV=production` if it finds development secrets, the dev mail provider or missing SMTP settings.
+The API refuses to start with `APP_ENV=production` if it finds development secrets, a mock adapter, the dev mail provider or missing SMTP settings.

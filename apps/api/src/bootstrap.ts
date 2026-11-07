@@ -41,7 +41,7 @@ export function createContext(
       storage,
       aiAdapter: env.AI_ADAPTER,
       encryptionKey: parseKey(env.ENCRYPTION_KEY),
-      gbp: createGbpAdapter({ adapter: env.GBP_ADAPTER, db, clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }),
+      gbp: createGbpAdapter({ adapter: env.GBP_ADAPTER, db, clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, mockSample: env.MOCK_SAMPLE_DATA }),
       messenger,
       mailProvider:
         overrides.mailProvider ??
