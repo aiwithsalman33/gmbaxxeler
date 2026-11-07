@@ -75,10 +75,8 @@ describe("environment validation", () => {
     }
   });
 
-  it("flags leftover placeholders in production", () => {
-    const found = problems({ ...valid, MINIO_SECRET_KEY: "change-me", DATABASE_URL: "postgresql://u:change-me@postgres:5432/d" }).join("\n");
-    expect(found).toContain("MINIO_SECRET_KEY is still the placeholder");
-    expect(found).toContain("POSTGRES_PASSWORD is still the placeholder");
+  it("does not police passwords for the private postgres and minio containers", () => {
+    expect(problems({ ...valid, MINIO_SECRET_KEY: "change-me", DATABASE_URL: "postgresql://u:change-me@postgres:5432/d" })).toEqual([]);
   });
 
   it("starts with no Google credentials", () => {

@@ -79,8 +79,6 @@ function productionProblems(env: Env): string[] {
     env.JWT_SECRET === DEV_JWT_SECRET && "JWT_SECRET is the development default",
     env.ENCRYPTION_KEY === DEV_ENCRYPTION_KEY && "ENCRYPTION_KEY is the development default",
     env.AI_ADAPTER === "mock" && env.GBP_ADAPTER === "real" && "AI_ADAPTER cannot be mock with GBP_ADAPTER=real",
-    env.MINIO_SECRET_KEY === "change-me" && "MINIO_SECRET_KEY is still the placeholder",
-    env.DATABASE_URL.includes(":change-me@") && "POSTGRES_PASSWORD is still the placeholder",
     !DATABASE_URL_SHAPE.test(env.DATABASE_URL) && `DATABASE_URL is invalid: ${REQUIREMENTS.DATABASE_URL}`,
   ];
   return problems.filter((problem) => typeof problem === "string");

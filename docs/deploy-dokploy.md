@@ -41,16 +41,16 @@ Required:
 
 ```env
 APP_URL=https://gmb.axxeler.in
-POSTGRES_PASSWORD=<generated>
 JWT_SECRET=<generated>
 ENCRYPTION_KEY=<generated>
-MINIO_SECRET_KEY=<generated>
 SIGNUP_ALLOWED_EMAILS=<your email>
 SEED_ADMIN_EMAIL=<your email>
 SEED_ADMIN_PASSWORD=<a strong password>
 ```
 
-Generate each secret with `openssl rand -hex 32`. Hex is safest for `POSTGRES_PASSWORD`, because characters like `@ : / # ?` break the database URL.
+Generate each secret with `openssl rand -hex 32`.
+
+Postgres and MinIO run inside Docker, so you don't need to set anything for them. Neither publishes a port, and Caddy only serves public images from MinIO, read-only. The compose file builds the database connection itself. If you do set `POSTGRES_PASSWORD` or `MINIO_SECRET_KEY`, keep the same value afterwards, because each volume keeps the one it first started with. Use hex for `POSTGRES_PASSWORD`, because characters like `@ : / # ?` break the database URL.
 
 For the current mock setup, also add:
 
