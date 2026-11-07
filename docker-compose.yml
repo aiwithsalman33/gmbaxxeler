@@ -92,7 +92,8 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/api.Dockerfile
+      dockerfile: docker/Dockerfile
+      target: api
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -121,7 +122,8 @@ services:
   worker:
     build:
       context: .
-      dockerfile: docker/worker.Dockerfile
+      dockerfile: docker/Dockerfile
+      target: worker
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -140,7 +142,8 @@ services:
   web:
     build:
       context: .
-      dockerfile: docker/web.Dockerfile
+      dockerfile: docker/Dockerfile
+      target: web
     restart: unless-stopped
     networks:
       - backend

@@ -3,5 +3,15 @@
 **/.next
 **/.turbo
 **/coverage
+**/*.tsbuildinfo
+**/*.test.ts
+apps/api/test
 .env
 .git
+.github
+docs
+scripts
+README.md
+docker-compose*.yml
+eslint.config.mjs
+vitest.config.ts

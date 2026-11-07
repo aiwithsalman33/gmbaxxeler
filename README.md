@@ -118,6 +118,13 @@ While the OAuth consent screen is in Testing mode, refresh tokens expire after 7
 
 The real adapter has been tested against a fake Google server, not live Google.
 
+## Building on a small server
+
+All three images come from one `docker/Dockerfile`, so dependencies install and `prisma generate` runs once. On a small VPS, either limit the build or skip it:
+
+- **Limit it:** set `COMPOSE_PARALLEL_LIMIT=1` and `COMPOSE_BAKE=false` in the Dokploy environment, so images build one at a time.
+- **Skip it:** let GitHub Actions build the images and use `docker-compose.prod.yml`. See "Prebuilt images" in [docs/deploy-dokploy.md](docs/deploy-dokploy.md). This is the better choice under about 4 GB of RAM.
+
 ## Troubleshooting deploy
 
 When a deploy says `container api is unhealthy`, the reason is in the API's log:
@@ -135,7 +142,8 @@ free -m && df -h /                                # memory and disk
 | `Authentication failed` or `P1000` | The postgres volume kept its first password | Restore that password, or delete the volume, which erases its data |
 | `invalid port` or a database URL error | `POSTGRES_PASSWORD` has characters like `@ : / #` | Use `openssl rand -hex 32`, or URL-encode it in `DATABASE_URL` |
 | `Can't reach storage` | MinIO is down, or its volume kept older credentials | Check `minio` is healthy, or delete its volume |
-| `Killed`, or very low free memory | The server ran out of memory | Allow at least 4 GB of RAM |
+| `Killed`, or very low free memory | The server ran out of memory | Allow at least 4 GB of RAM, or use prebuilt images |
+| Build stops with no error | The build ran out of memory or was cancelled | Use prebuilt images, or set `COMPOSE_PARALLEL_LIMIT=1` |
 | No log lines, only unhealthy | The container hasn't started or the health check timed out | Check the `docker inspect` output above |
 
 Changing `POSTGRES_PASSWORD` or `MINIO_SECRET_KEY` after the first start doesn't change the password stored in the volume.

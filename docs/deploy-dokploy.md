@@ -116,6 +116,17 @@ Google login works as soon as credentials are set. Business Profile access needs
 
 Test with one real profile first: one photo, one post and one review reply.
 
+## Prebuilt images
+
+Use this if the build stops or gets cancelled on your server. GitHub builds the images on each push to `main`, and the server only pulls them.
+
+1. Push to `main`, then check the **Actions** tab on GitHub until **Build images** is green.
+2. On GitHub, open each of the three packages (`gmbaxxeler-api`, `-worker`, `-web`) under your profile's **Packages**, and set its visibility to public. If you keep them private, add `ghcr.io` in Dokploy under **Registry** with a GitHub token that has `read:packages`.
+3. In Dokploy, change the compose path to `docker-compose.prod.yml`.
+4. Deploy. To pin a version, set `IMAGE_TAG` to a commit SHA. It defaults to `latest`.
+
+The compose file and `docker/Caddyfile` still come from the repository, so keep the Git source in Dokploy.
+
 ## Backups
 
 The `backup` service writes a compressed dump to the `backups` volume once a day and keeps the newest 14 (`BACKUP_KEEP`).

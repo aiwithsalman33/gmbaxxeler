@@ -8,4 +8,5 @@ export default {
   output: "standalone",
   outputFileTracingRoot: root,
   eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: process.env.SKIP_NEXT_TYPECHECK === "1" },
 };
