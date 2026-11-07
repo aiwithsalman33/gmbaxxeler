@@ -104,10 +104,15 @@ async function saveState(db: Db, workspaceId: string, state: MockState): Promise
   await db.mockGbpState.upsert({ where: { workspaceId }, create: { workspaceId, state: json }, update: { state: json } });
 }
 
+/** Locks the row, so the API and worker can't overwrite each other's changes. */
 async function mutate(db: Db, workspaceId: string, change: (state: MockState) => void): Promise<void> {
-  const state = await loadState(db, workspaceId);
-  change(state);
-  await saveState(db, workspaceId, state);
+  await db.$transaction(async (tx) => {
+    await tx.$executeRaw`INSERT INTO mock_gbp_state (workspace_id, updated_at) VALUES (${workspaceId}::uuid, now()) ON CONFLICT DO NOTHING`;
+    const [row] = await tx.$queryRaw<{ state: Partial<MockState> }[]>`SELECT state FROM mock_gbp_state WHERE workspace_id = ${workspaceId}::uuid FOR UPDATE`;
+    const state = row?.state.seeded ? (row.state as MockState) : initialState();
+    change(state);
+    await tx.mockGbpState.update({ where: { workspaceId }, data: { state: state as unknown as object } });
+  });
 }
 
 class MockSession implements GbpSession {

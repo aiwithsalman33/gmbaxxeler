@@ -12,17 +12,17 @@ Deploying to a VPS? See [docs/deploy-dokploy.md](docs/deploy-dokploy.md).
 docker compose up --build
 ```
 
-No `.env` is needed for development. Then open <http://localhost:8080>.
+No `.env` is needed for development. Then open <http://127.0.0.1:8080>.
 
 | Service | URL |
 |---|---|
-| App | <http://localhost:8080> |
-| API docs | <http://localhost:8080/api/docs> |
-| Health | <http://localhost:8080/api/health> |
+| App | <http://127.0.0.1:8080> |
+| API docs | <http://127.0.0.1:8080/api/docs> |
+| Health | <http://127.0.0.1:8080/api/health> |
 
 ### Log in
 
-1. Register at <http://localhost:8080/register> with `admin@localpilot.dev`, the development allowlist.
+1. Register at <http://127.0.0.1:8080/register> with `admin@localpilot.dev`, the development allowlist.
 2. Read the verification link from the logs: `docker compose logs worker | grep verify-email`
 3. Open the link, then log in.
 

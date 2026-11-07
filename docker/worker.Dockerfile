@@ -23,11 +23,19 @@ COPY . .
 RUN pnpm db:generate
 RUN pnpm --filter @localpilot/worker build
 
+# Only what this service needs at runtime, which keeps the image small.
+FROM deps AS prod
+COPY packages/db/prisma packages/db/prisma
+RUN rm -rf node_modules
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts --filter "@localpilot/worker..."
+RUN pnpm rebuild prisma @prisma/client @prisma/engines
+RUN pnpm --filter @localpilot/db exec prisma generate
+
 FROM node:22-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=prod /app/node_modules ./node_modules
 COPY --from=build /app/apps/worker/dist ./apps/worker/dist
 COPY --from=build /app/apps/worker/package.json ./apps/worker/package.json
 USER node
