@@ -65,7 +65,7 @@ describe("library", () => {
 
   it("rejects files over 5 MB", async () => {
     const response = await upload([{ name: "big.png", data: Buffer.concat([makePng(), Buffer.alloc(5 * 1024 * 1024)]) }]);
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(200);
     expect(response.json().results[0].error).toMatch(/5 MB/);
   });
 

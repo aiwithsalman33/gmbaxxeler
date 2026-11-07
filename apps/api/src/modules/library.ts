@@ -120,7 +120,7 @@ export function libraryRoutes(ctx: AppContext) {
           });
           results.push({ name, ok: true, image });
         }
-        return reply.status(results.some((r) => r.ok) ? 201 : 400).send({ results });
+        return reply.status(results.some((r) => r.ok) ? 201 : 200).send({ results });
       },
     );
 
