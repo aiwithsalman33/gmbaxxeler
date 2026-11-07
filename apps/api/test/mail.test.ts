@@ -41,6 +41,15 @@ describe("queueing", () => {
     expect(await h.ctx.db.emailLog.findFirst({ where: { to: "a@example.com" } })).toMatchObject({ status: "queued", template: "reset_password" });
   });
 
+  it("says email is off instead of pretending to send a test", async () => {
+    h.ctx.deps.mailProvider.offReason = "Email is off. Set SMTP_PASS to send mail.";
+    const response = await api("POST", "/settings/mail/test");
+    h.ctx.deps.mailProvider.offReason = undefined;
+    expect(response.statusCode).toBe(409);
+    expect(JSON.stringify(response.json())).toContain("SMTP_PASS");
+    expect(h.mail).toHaveLength(0);
+  });
+
   it("logs a sent email", async () => {
     await api("POST", "/settings/mail/test");
     const log = (await api("GET", "/settings/mail/log")).json();

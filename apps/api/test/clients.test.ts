@@ -266,7 +266,7 @@ describe("mock data", () => {
   it("is allowed in production, for use until Google approves API access", () => {
     const production = {
       APP_ENV: "production",
-      DATABASE_URL: "postgresql://x",
+      DATABASE_URL: "postgresql://user:password@postgres:5432/localpilot",
       JWT_SECRET: "a".repeat(64),
       ENCRYPTION_KEY: "ab".repeat(32),
       APP_URL: "https://x.example",

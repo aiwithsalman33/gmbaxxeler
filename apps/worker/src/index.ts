@@ -37,6 +37,7 @@ const db = createDb(databaseUrl);
 const log = (message: string) => logger.info(message);
 const boss = new PgBoss({ connectionString: databaseUrl, schema: "pgboss" });
 const mailProvider = process.env.MAIL_PROVIDER === "smtp" ? "smtp" : "dev";
+const production = process.env.APP_ENV === "production";
 
 const agencyEmail = process.env.AGENCY_GOOGLE_EMAIL?.trim().toLowerCase() || null;
 
@@ -61,13 +62,14 @@ const deps: Deps = {
     mockEmail: agencyEmail,
   }),
   messenger: new Messenger({
-    mode: mailProvider === "dev" ? "dev" : "live",
+    mode: mailProvider === "dev" && !production ? "dev" : "live",
     whatsappWebhookUrl: process.env.WHATSAPP_WEBHOOK_URL,
     smsWebhookUrl: process.env.SMS_WEBHOOK_URL,
     log,
   }),
   mailProvider: createMailProvider({
     provider: mailProvider,
+    production,
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 465),
     secure: process.env.SMTP_SECURE !== "false",

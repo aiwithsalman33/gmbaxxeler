@@ -155,7 +155,8 @@ free -m && df -h /                                # memory and disk
 
 | Log says | Cause | Fix |
 |---|---|---|
-| `LocalPilot can't start`, then a list | Listed variables are missing or invalid | Fix each one. Only names are printed, never values |
+| `STARTUP FAILED: environment variables` | The named variables are missing or invalid | Fix each one. Only names are printed, never values |
+| `STARTUP FAILED: storage` | MinIO is down, or its volume kept its first keys | Restore those keys, or delete the volume, which erases its files |
 | `Authentication failed` or `P1000` | The postgres volume kept its first password | Restore that password, or delete the volume, which erases its data |
 | `invalid port` or a database URL error | `POSTGRES_PASSWORD` has characters like `@ : / #` | Use `openssl rand -hex 32`, or URL-encode it in `DATABASE_URL` |
 | `Can't reach storage` | MinIO is down, or its volume kept older credentials | Check `minio` is healthy, or delete its volume |
@@ -176,7 +177,7 @@ docker compose -p <project-name> down -v
 Full steps are in [docs/deploy-dokploy.md](docs/deploy-dokploy.md). In short:
 
 1. Create a **Compose** service in Dokploy from this repository, using `docker-compose.yml`.
-2. Set the environment variables in the Dokploy UI, including `SMTP_PASS`, which belongs nowhere else.
+2. Set the environment variables in the Dokploy UI. Email is optional, but `SMTP_PASS` belongs nowhere else.
 3. In **Domains**, set `gmb.axxeler.in` to service `caddy`, port `8080`, with HTTPS on.
 4. Deploy, then check `https://gmb.axxeler.in/api/health`.
 

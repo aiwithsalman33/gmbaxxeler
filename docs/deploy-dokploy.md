@@ -37,23 +37,33 @@ Back up `ENCRYPTION_KEY` somewhere safe. Stored Google tokens and OpenAI keys ca
 
 Paste this into the **Environment** tab with your values:
 
-```env
-APP_ENV=production
-APP_URL=https://gmb.axxeler.in
-API_URL=https://gmb.axxeler.in/api
-PUBLIC_MEDIA_URL=https://gmb.axxeler.in/media
-TRUST_PROXY_HOPS=2
+Required:
 
+```env
+APP_URL=https://gmb.axxeler.in
 POSTGRES_PASSWORD=<generated>
 JWT_SECRET=<generated>
 ENCRYPTION_KEY=<generated>
-MINIO_ACCESS_KEY=localpilot
 MINIO_SECRET_KEY=<generated>
-
 SIGNUP_ALLOWED_EMAILS=<your email>
 SEED_ADMIN_EMAIL=<your email>
 SEED_ADMIN_PASSWORD=<a strong password>
+```
 
+Generate each secret with `openssl rand -hex 32`. Hex is safest for `POSTGRES_PASSWORD`, because characters like `@ : / # ?` break the database URL.
+
+For the current mock setup, also add:
+
+```env
+AI_ADAPTER=mock
+GBP_ADAPTER=mock
+MOCK_SAMPLE_DATA=true
+AGENCY_GOOGLE_EMAIL=baranikumargd2@gmail.com
+```
+
+Optional, and needed to send email:
+
+```env
 MAIL_PROVIDER=smtp
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
@@ -62,15 +72,11 @@ SMTP_USER=aiwithsalman33@gmail.com
 SMTP_PASS=<Google App Password>
 MAIL_FROM="LocalPilot <aiwithsalman33@gmail.com>"
 MAIL_DAILY_CAP=300
-
-AI_ADAPTER=mock
-GBP_ADAPTER=mock
-MOCK_SAMPLE_DATA=true
-AGENCY_GOOGLE_EMAIL=baranikumargd2@gmail.com
-AUTH_PASSWORD_ENABLED=true
 ```
 
-The API refuses to start in production with development secrets, `MAIL_PROVIDER=dev` or missing SMTP settings. Google credentials aren't needed to start.
+The API won't start in production without the required values or with development secrets. Google, SMTP and OpenAI settings aren't needed to start. `API_URL` and `PUBLIC_MEDIA_URL` follow `APP_URL` unless you set them.
+
+Without SMTP, email is off. Signing in with the seeded account works, but password resets, invites and verification emails can't be sent, and those attempts show as failed in the mail log.
 
 Mock mode is for now, while Google hasn't approved Business Profile API access. Everything in it is simulated, and Settings > Google shows "API access: not approved". For real AI text, set `AI_ADAPTER=openai` and save a key in Account Settings.
 

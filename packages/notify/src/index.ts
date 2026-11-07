@@ -1,10 +1,11 @@
 export * from "./mail-provider";
 export * from "./templates";
 
-import { DevMailProvider, SmtpProvider, type MailProvider } from "./mail-provider";
+import { DevMailProvider, MailOffProvider, SmtpProvider, type MailProvider } from "./mail-provider";
 
 export interface MailConfig {
   provider: "smtp" | "dev";
+  production?: boolean;
   host?: string;
   port: number;
   secure: boolean;
@@ -14,11 +15,15 @@ export interface MailConfig {
   log: (message: string) => void;
 }
 
+/** Missing SMTP settings turn email off rather than stopping the app. Production never prints mail. */
 export function createMailProvider(config: MailConfig): MailProvider {
-  if (config.provider === "dev") return new DevMailProvider(config.log);
+  if (config.provider === "dev" && !config.production) return new DevMailProvider(config.log);
   const { host, user, pass, from, port, secure } = config;
-  if (!host || !user || !pass || !from) throw new Error("SMTP_HOST, SMTP_USER, SMTP_PASS and MAIL_FROM are required");
-  return new SmtpProvider({ host, port, secure, user, pass, from });
+  if (host && user && pass && from) return new SmtpProvider({ host, port, secure, user, pass, from });
+  const missing = Object.entries({ SMTP_HOST: host, SMTP_USER: user, SMTP_PASS: pass, MAIL_FROM: from }).filter(([, value]) => !value);
+  const reason = `Email is off. Set ${missing.map(([name]) => name).join(", ")} to send mail.`;
+  config.log(reason);
+  return new MailOffProvider(reason);
 }
 
 export type ChannelName = "whatsapp" | "sms";

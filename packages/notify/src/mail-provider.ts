@@ -9,6 +9,8 @@ export interface MailMessage {
 
 /** SMTP today. A Resend or SES adapter only has to implement this. */
 export interface MailProvider {
+  /** Set when email can't be sent at all, and says why. */
+  offReason?: string;
   send(message: MailMessage): Promise<void>;
 }
 
@@ -37,6 +39,15 @@ export class SmtpProvider implements MailProvider {
 
   async send(message: MailMessage): Promise<void> {
     await this.transport.sendMail({ from: this.from, ...message });
+  }
+}
+
+/** Used when SMTP isn't set up. Failing means each email shows as failed in the mail log. */
+export class MailOffProvider implements MailProvider {
+  constructor(readonly offReason: string) {}
+
+  async send(): Promise<void> {
+    throw new Error(this.offReason);
   }
 }
 

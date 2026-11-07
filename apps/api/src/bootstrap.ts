@@ -23,7 +23,7 @@ export function createContext(
     bucket: env.MINIO_BUCKET,
   });
   const messenger = new Messenger({
-    mode: env.MAIL_PROVIDER === "dev" ? "dev" : "live",
+    mode: env.MAIL_PROVIDER === "dev" && env.APP_ENV !== "production" ? "dev" : "live",
     whatsappWebhookUrl: env.WHATSAPP_WEBHOOK_URL,
     smsWebhookUrl: env.SMS_WEBHOOK_URL,
     log,
@@ -51,6 +51,7 @@ export function createContext(
         overrides.mailProvider ??
         createMailProvider({
           provider: env.MAIL_PROVIDER,
+          production: env.APP_ENV === "production",
           host: env.SMTP_HOST,
           port: env.SMTP_PORT,
           secure: env.SMTP_SECURE,
