@@ -29,6 +29,13 @@ enum ConnectionStatus {
   active
   revoked
   error
+  disconnected
+}
+
+enum OAuthPurpose {
+  login
+  agency
+  invite
 }
 
 enum ConnectionSource {
@@ -131,6 +138,7 @@ model User {
   passwordHash     String?   @map("password_hash")
   name             String?
   phone            String?
+  googleSubject    String?   @unique @map("google_subject")
   emailVerifiedAt  DateTime? @map("email_verified_at")
   failedLoginCount Int       @default(0) @map("failed_login_count")
   lockedUntil      DateTime? @map("locked_until")
@@ -144,6 +152,35 @@ model User {
   authTokens  AuthToken[]
 
   @@map("users")
+}
+
+/// One row. Login happens before a workspace is known, so these are app-wide.
+model AppSettings {
+  id                    Int       @id @default(1)
+  googleClientId        String?   @map("google_client_id")
+  googleClientSecretEnc String?   @map("google_client_secret_enc")
+  keyVersion            Int       @default(1) @map("key_version")
+  credentialsStatus     String    @default("unknown") @map("credentials_status")
+  testedAt              DateTime? @map("tested_at")
+  apiAccess             String    @default("unknown") @map("api_access")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+model OAuthState {
+  id              String       @id @default(uuid()) @db.Uuid
+  stateHash       String       @unique @map("state_hash")
+  purpose         OAuthPurpose
+  workspaceId     String?      @map("workspace_id") @db.Uuid
+  userId          String?      @map("user_id") @db.Uuid
+  inviteId        String?      @map("invite_id") @db.Uuid
+  codeVerifierEnc String       @map("code_verifier_enc")
+  expiresAt       DateTime     @map("expires_at")
+  usedAt          DateTime?    @map("used_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@map("oauth_states")
 }
 
 model AuthToken {
@@ -249,17 +286,25 @@ model WorkspaceMember {
 }
 
 model GoogleConnection {
-  id                 String           @id @default(uuid()) @db.Uuid
-  workspaceId        String           @map("workspace_id") @db.Uuid
-  googleAccountEmail String           @map("google_account_email")
-  googleSubject      String           @map("google_subject")
-  refreshTokenEnc    String           @map("refresh_token_enc")
-  keyVersion         Int              @default(1) @map("key_version")
-  scopes             String[]
-  status             ConnectionStatus @default(active)
-  source             ConnectionSource @default(agency)
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
+  id                   String           @id @default(uuid()) @db.Uuid
+  workspaceId          String           @map("workspace_id") @db.Uuid
+  googleAccountEmail   String           @map("google_account_email")
+  googleSubject        String           @map("google_subject")
+  refreshTokenEnc      String?          @map("refresh_token_enc")
+  accessTokenEnc       String?          @map("access_token_enc")
+  accessTokenExpiresAt DateTime?        @map("access_token_expires_at")
+  googleName           String?          @map("google_name")
+  lastError            String?          @map("last_error")
+  lastSyncedAt         DateTime?        @map("last_synced_at")
+  accountsCount        Int              @default(0) @map("accounts_count")
+  locationsCount       Int              @default(0) @map("locations_count")
+  mismatchConfirmedAt  DateTime?        @map("mismatch_confirmed_at")
+  keyVersion           Int              @default(1) @map("key_version")
+  scopes               String[]
+  status               ConnectionStatus @default(active)
+  source               ConnectionSource @default(agency)
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
 
   workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   clients     Client[]
@@ -365,24 +410,25 @@ model ClientProfile {
 }
 
 model GbpInvitation {
-  id              String           @id @default(uuid()) @db.Uuid
-  workspaceId     String           @map("workspace_id") @db.Uuid
-  connectionId    String           @map("connection_id") @db.Uuid
-  invitationName  String           @map("invitation_name")
-  accountId       String           @map("account_id")
-  targetType      String           @map("target_type")
-  role            String
-  locationName    String?          @map("location_name")
-  address         String?
-  placeId         String?          @map("place_id")
-  status          InvitationStatus @default(pending)
-  matchedClientId String?          @map("matched_client_id") @db.Uuid
-  matchScore      Float?           @map("match_score")
-  matchReason     String?          @map("match_reason")
-  firstSeenAt     DateTime         @default(now()) @map("first_seen_at")
-  resolvedAt      DateTime?        @map("resolved_at")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id                String           @id @default(uuid()) @db.Uuid
+  workspaceId       String           @map("workspace_id") @db.Uuid
+  connectionId      String           @map("connection_id") @db.Uuid
+  invitationName    String           @map("invitation_name")
+  accountId         String           @map("account_id")
+  targetType        String           @map("target_type")
+  role              String
+  locationName      String?          @map("location_name")
+  address           String?
+  placeId           String?          @map("place_id")
+  status            InvitationStatus @default(pending)
+  matchedClientId   String?          @map("matched_client_id") @db.Uuid
+  matchScore        Float?           @map("match_score")
+  matchReason       String?          @map("match_reason")
+  suggestedClientId String?          @map("suggested_client_id") @db.Uuid
+  firstSeenAt       DateTime         @default(now()) @map("first_seen_at")
+  resolvedAt        DateTime?        @map("resolved_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   connection GoogleConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)

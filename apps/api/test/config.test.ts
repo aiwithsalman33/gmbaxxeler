@@ -53,7 +53,7 @@ describe("environment validation", () => {
   });
 
   it("never prints a value", () => {
-    const secrets = { JWT_SECRET: "short-jwt-secret", ENCRYPTION_KEY: "not-a-real-key-value", APP_URL: "not-a-url-value", SMTP_PASS: "", GOOGLE_CLIENT_ID: "" };
+    const secrets = { JWT_SECRET: "short-jwt-secret", ENCRYPTION_KEY: "not-a-real-key-value", APP_URL: "not-a-url-value", SMTP_PASS: "" };
     const found = problems({ ...valid, ...secrets }).join("\n");
     for (const value of ["short-jwt-secret", "not-a-real-key-value", "not-a-url-value", "db-password-value", "minio-secret-value"]) {
       expect(found).not.toContain(value);
@@ -66,8 +66,13 @@ describe("environment validation", () => {
     expect(found).toContain("POSTGRES_PASSWORD is still the placeholder");
   });
 
-  it("needs Google credentials with the real adapter, in any environment", () => {
-    expect(problems({ ...valid, APP_ENV: "development", GOOGLE_CLIENT_ID: "" }).join("\n")).toContain("GOOGLE_CLIENT_ID is missing");
+  it("starts with no Google credentials", () => {
+    expect(problems({ ...valid, GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "" })).toEqual([]);
+  });
+
+  it("allows mock mode in production, but not mock AI with real Google", () => {
+    expect(problems({ ...valid, GBP_ADAPTER: "mock", AI_ADAPTER: "mock" })).toEqual([]);
+    expect(problems({ ...valid, GBP_ADAPTER: "real", AI_ADAPTER: "mock" }).join("\n")).toContain("AI_ADAPTER cannot be mock");
   });
 
   it("names a missing SMTP password", () => {

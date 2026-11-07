@@ -34,19 +34,32 @@ export async function applyGbpFailure(deps: Deps, client: Client, error: unknown
 
 export async function markConnectionRevoked(deps: Deps, connectionId: string): Promise<void> {
   const connection = await deps.db.googleConnection.findUnique({ where: { id: connectionId } });
-  if (!connection || connection.status === "revoked") return;
-  await deps.db.googleConnection.update({ where: { id: connectionId }, data: { status: "revoked" } });
-  await deps.db.client.updateMany({
-    where: { connectionId, status: "connected" },
-    data: { status: "reconnect_required" },
+  if (!connection || connection.status !== "active") return;
+  await deps.db.googleConnection.update({
+    where: { id: connectionId },
+    data: { status: "error", lastError: "Google access was revoked or expired", accessTokenEnc: null, accessTokenExpiresAt: null },
   });
+  await deps.db.client.updateMany({ where: { connectionId, status: "connected" }, data: { status: "reconnect_required" } });
   await notify(deps, {
     workspaceId: connection.workspaceId,
     type: "google.reconnect_required",
     severity: "critical",
     title: "Reconnect your Google account",
-    body: `Access for ${connection.googleAccountEmail} was revoked. Reconnect it in Account Settings.`,
+    body: `Access for ${connection.googleAccountEmail} was revoked or expired. Reconnect it in Settings > Google.`,
   });
+}
+
+/** Catches revoked access even on days nothing else calls Google. */
+export async function checkConnections(deps: Deps): Promise<void> {
+  const connections = await deps.db.googleConnection.findMany({ where: { status: "active", refreshTokenEnc: { not: null } } });
+  for (const connection of connections) {
+    try {
+      await sessionFor(deps, connection).listAccounts();
+    } catch (error) {
+      if (error instanceof GbpError && error.kind === "auth_revoked") await markConnectionRevoked(deps, connection.id);
+      else deps.logger.warn({ connectionId: connection.id, err: error instanceof Error ? error.message : "unknown" }, "connection check failed");
+    }
+  }
 }
 
 async function storeLocation(deps: Deps, client: Client, session: GbpSession, location: GbpLocation): Promise<void> {

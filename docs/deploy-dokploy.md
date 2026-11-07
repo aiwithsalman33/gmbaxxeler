@@ -63,15 +63,16 @@ SMTP_PASS=<Google App Password>
 MAIL_FROM="LocalPilot <aiwithsalman33@gmail.com>"
 MAIL_DAILY_CAP=300
 
-AI_ADAPTER=openai
-GBP_ADAPTER=real
-GOOGLE_CLIENT_ID=<from Google Cloud>
-GOOGLE_CLIENT_SECRET=<from Google Cloud>
+AI_ADAPTER=mock
+GBP_ADAPTER=mock
+MOCK_SAMPLE_DATA=true
+AGENCY_GOOGLE_EMAIL=baranikumargd2@gmail.com
+AUTH_PASSWORD_ENABLED=true
 ```
 
-The API refuses to start in production with development secrets, `MAIL_PROVIDER=dev`, a mock adapter, or missing SMTP settings. Mock data can't appear on the live site.
+The API refuses to start in production with development secrets, `MAIL_PROVIDER=dev` or missing SMTP settings. Google credentials aren't needed to start.
 
-Create the OAuth credentials before deploying. Google calls fail with a quota error until your API access is approved.
+Mock mode is for now, while Google hasn't approved Business Profile API access. Everything in it is simulated, and Settings > Google shows "API access: not approved". For real AI text, set `AI_ADAPTER=openai` and save a key in Account Settings.
 
 `SEED_ADMIN_*` creates a verified owner on first start, so you can log in before email is confirmed working. It never changes an existing account. You can clear the password from Dokploy after your first login.
 
@@ -105,11 +106,13 @@ If the health check gets a 502, or requests from the same IP lock out unrelated 
 
 ## 5. Connect real Google
 
-1. Apply for API access. You need a verified Business Profile active for 60+ days and a website.
-2. In Google Cloud, check your quota. 0 means not approved yet, 300 means approved.
-3. Enable the Business Profile APIs and create OAuth credentials.
-4. Add this redirect URI: `https://gmb.axxeler.in/api/v1/google/oauth/callback`
-5. Check `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set, then redeploy.
+Google login works as soon as credentials are set. Business Profile access needs Google's approval first.
+
+1. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or enter them in Settings > Google.
+2. Add both redirect URIs shown in Settings > Google to your OAuth client.
+3. Add `axxeler@gmail.com` and `baranikumargd2@gmail.com` as Test users.
+4. When Google approves API access, set `GBP_ADAPTER=real` and `AI_ADAPTER=openai`, then redeploy.
+5. In Settings > Google, connect `baranikumargd2@gmail.com` and import locations.
 
 Test with one real profile first: one photo, one post and one review reply.
 

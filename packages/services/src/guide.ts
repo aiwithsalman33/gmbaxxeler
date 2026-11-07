@@ -14,7 +14,7 @@ export function guideMessage(input: { businessName: string; agencyEmail: string 
       "2. Open your Business Profile, then Menu > Business Profile settings",
       "3. Choose People and access > Add",
       `4. Enter ${email}`,
-      "5. Set the role to Manager and tap Invite",
+      "5. Set the role to Manager, not Owner, and tap Invite",
       "",
       "That's it. We'll accept automatically and let you know once it's connected.",
     ].join("\n"),

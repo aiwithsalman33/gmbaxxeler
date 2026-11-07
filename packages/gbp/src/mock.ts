@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { DAILY_METRICS, datesBetween } from "@localpilot/core";
 import type { Db } from "@localpilot/db";
-import { GbpError, type ExchangeContext, type GbpAccount, type GbpAdapter, type GbpIdentity, type GbpInvitationItem, type GbpLocation, type GbpMetricRow, type GbpSession, type GbpSessionContext, type GbpReview, type GbpStats, type PhotoUpload, type PostPublish } from "./types";
+import { BUSINESS_SCOPE } from "./oauth";
+import { GbpError, type ExchangeContext, type GbpAccount, type GbpAdapter, type GbpIdentity, type GbpInvitationItem, type GbpLocation, type GbpMetricRow, type GbpSession, type GbpSessionContext, type GbpReview, type GbpStats, type PhotoUpload, type PostPublish, type ConsentRequest } from "./types";
 
 const ACCOUNT: GbpAccount = { accountId: "mock-agency", name: "Mock Agency Account", type: "PERSONAL" };
+const GROUP: GbpAccount = { accountId: "mock-group", name: "Mock Location Group", type: "LOCATION_GROUP" };
 export const MOCK_AGENCY_EMAIL = "agency.demo@localpilot.dev";
 
 interface MockLocation extends GbpLocation {
@@ -57,6 +59,7 @@ const BASE_METRICS: Record<string, number> = {
 function seededLocation(n: number, title: string, city: string, overrides: Partial<GbpLocation> = {}): MockLocation {
   return {
     accountId: ACCOUNT.accountId,
+    accountName: ACCOUNT.name,
     locationId: `mock-loc-${n}`,
     title,
     phone: `+9198000000${String(n).padStart(2, "0")}`,
@@ -85,6 +88,10 @@ function initialState(sample: boolean): MockState {
       seededLocation(3, "Metro Fitness Studio", "Coimbatore", { website: null, services: [] }),
       seededLocation(4, "Bright Smile Orthodontics", "Madurai", { hasHours: false }),
       seededLocation(5, "Urban Spice Kitchen", "Hyderabad"),
+      seededLocation(6, "Lotus Yoga Centre", "Pune"),
+      ...["Coastal Auto Care", "Harvest Organic Store", "Pearl Beauty Salon", "Northside Vet Clinic"].map((title, index) =>
+        seededLocation(7 + index, title, "Kochi", { accountId: GROUP.accountId, accountName: GROUP.name }),
+      ),
     ],
   };
 }
@@ -129,8 +136,8 @@ class MockSession implements GbpSession {
   }
 
   async listAccounts(): Promise<GbpAccount[]> {
-    await this.state();
-    return [ACCOUNT];
+    const state = await this.state();
+    return state.locations.some((location) => location.accountId === GROUP.accountId) ? [ACCOUNT, GROUP] : [ACCOUNT];
   }
 
   async listInvitations(accountId: string): Promise<GbpInvitationItem[]> {
@@ -257,29 +264,34 @@ export class MockGbpAdapter implements GbpAdapter {
   readonly name = "mock" as const;
 
   /** With sample off, the fake account has no businesses until an invitation arrives. */
+  email: string;
+
   constructor(
     private readonly db: Db,
     private readonly sample = false,
-  ) {}
+    email?: string | null,
+  ) {
+    this.email = email || MOCK_AGENCY_EMAIL;
+  }
 
-  authUrl(state: string, redirectUri: string): string {
+  async authUrl({ state, redirectUri }: ConsentRequest): Promise<string> {
     return `${redirectUri}?code=mock-code&state=${encodeURIComponent(state)}`;
   }
 
   async exchangeCode(_code: string, _redirectUri: string, context: ExchangeContext): Promise<GbpIdentity> {
-    const scopes = ["https://www.googleapis.com/auth/business.manage"];
+    const scopes = [BUSINESS_SCOPE];
     if (context.purpose === "invite") {
       let n = 0;
       await mutate(this.db, this.sample, context.workspaceId, (state) => {
         n = state.sequence += 1;
         state.locations.push(seededLocation(n, context.businessName ?? "Invited Client Business", "Chennai"));
       });
-      return { refreshToken: `mock-client-token-${n}`, email: `client-${n}@example.com`, subject: `mock-client-${n}`, scopes };
+      return { refreshToken: `mock-client-token-${n}`, email: `client-${n}@example.com`, subject: `mock-client-${n}`, name: null, scopes };
     }
     await mutate(this.db, this.sample, context.workspaceId, (state) => {
       state.tokenRevoked = false;
     });
-    return { refreshToken: "mock-refresh-token", email: MOCK_AGENCY_EMAIL, subject: "mock-agency-subject", scopes };
+    return { refreshToken: "mock-refresh-token", email: this.email, subject: "mock-agency-subject", name: "Mock Agency", scopes };
   }
 
   async revoke(): Promise<void> {}
@@ -305,6 +317,12 @@ export class MockGbpAdapter implements GbpAdapter {
       });
     });
     return name;
+  }
+
+  /** One invitation that matches a pending client exactly, and one that can't be matched safely. */
+  async simulateSampleInvitations(workspaceId: string, clean: { locationName: string; address: string | null }): Promise<void> {
+    await this.simulateInvitation(workspaceId, clean);
+    await this.simulateInvitation(workspaceId, { locationName: `${clean.locationName} Branch`, address: null });
   }
 
   /** Simulates the client removing the agency, so the next sync gets a 403. */

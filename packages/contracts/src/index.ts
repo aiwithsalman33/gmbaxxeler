@@ -40,7 +40,10 @@ export const updateClientSchema = z.object({
 });
 
 export const locationRefSchema = z.object({ accountId: z.string().min(1), locationId: z.string().min(1) });
-export const importClientsSchema = z.object({ locations: z.array(locationRefSchema).min(1).max(100) });
+export const importClientsSchema = z
+  .object({ locations: z.array(locationRefSchema).min(1).max(500).optional(), all: z.boolean().optional() })
+  .refine((value) => value.all || value.locations, "Choose at least one location");
+export const googleCredentialsSchema = z.object({ clientId: z.string().trim().min(5).max(300), clientSecret: z.string().trim().min(1).max(300).optional() });
 export const guideChannelSchema = z.enum(["copy", "whatsapp", "sms"]);
 export const sendGuideSchema = z.object({ channel: guideChannelSchema });
 export const matchInvitationSchema = z.object({ clientId: z.string().uuid() });

@@ -1,6 +1,6 @@
 import type { Client, FolderKind, GoogleConnection, MatchMethod } from "@localpilot/db";
 import { matchLocation } from "@localpilot/core";
-import type { GbpLocation } from "@localpilot/gbp";
+import { GbpError, type GbpLocation } from "@localpilot/gbp";
 import { notify, PENDING_STATUSES, sessionFor, agencyConnection, type Deps } from "./context";
 import { syncClient } from "./sync";
 
@@ -13,51 +13,74 @@ export async function ensureFolders(deps: Deps, client: Pick<Client, "id" | "wor
   });
 }
 
+/** Pulls first data and tells the admin. Runs in the background for bulk imports. */
+export async function finishConnect(deps: Deps, clientId: string): Promise<void> {
+  const client = await deps.db.client.findUniqueOrThrow({ where: { id: clientId } });
+  await ensureFolders(deps, client);
+  await syncClient(deps, client.id);
+  await deps.db.auditLog.create({
+    data: { workspaceId: client.workspaceId, clientId: client.id, action: "client.connected", entity: "client", entityId: client.id, meta: { method: client.matchMethod } },
+  });
+  await notify(deps, {
+    workspaceId: client.workspaceId,
+    clientId: client.id,
+    type: "client.connected",
+    title: `${client.name} is connected`,
+    body: `Connected through ${(client.matchMethod ?? "manual").replace("_", " ")}. Next, fill in the knowledge base.`,
+  });
+}
+
+function attachData(connection: GoogleConnection, location: GbpLocation, method: MatchMethod) {
+  return {
+    status: "connected" as const,
+    connectionId: connection.id,
+    gbpAccountId: location.accountId,
+    gbpLocationId: location.locationId,
+    matchMethod: method,
+    connectedAt: new Date(),
+    accessLostAt: null,
+  };
+}
+
 /** Attaches a Google location to a client and pulls its first data. */
 export async function bindClient(
   deps: Deps,
   input: { client: Client; connection: GoogleConnection; location: GbpLocation; method: MatchMethod },
 ): Promise<Client> {
   const { client, connection, location, method } = input;
-  const bound = await deps.db.client.update({
-    where: { id: client.id },
-    data: {
-      status: "connected",
-      connectionId: connection.id,
-      gbpAccountId: location.accountId,
-      gbpLocationId: location.locationId,
-      matchMethod: method,
-      connectedAt: new Date(),
-      accessLostAt: null,
-    },
-  });
-  await ensureFolders(deps, bound);
-  await syncClient(deps, bound.id);
-  await deps.db.auditLog.create({
-    data: {
-      workspaceId: client.workspaceId,
-      clientId: client.id,
-      action: "client.connected",
-      entity: "client",
-      entityId: client.id,
-      meta: { method },
-    },
-  });
-  await notify(deps, {
-    workspaceId: client.workspaceId,
-    clientId: client.id,
-    type: "client.connected",
-    title: `${bound.name} is connected`,
-    body: `Connected to "${location.title}" (${method.replace("_", " ")}).`,
-  });
-  return bound;
+  await deps.db.client.update({ where: { id: client.id }, data: attachData(connection, location, method) });
+  await finishConnect(deps, client.id);
+  return deps.db.client.findUniqueOrThrow({ where: { id: client.id } });
+}
+
+export async function scanLocations(deps: Deps, connection: GoogleConnection): Promise<{ accounts: number; locations: GbpLocation[] }> {
+  const session = sessionFor(deps, connection);
+  try {
+    const accounts = await session.listAccounts();
+    const lists = await Promise.all(
+      accounts.map(async (account) => (await session.listLocations(account.accountId)).map((location) => ({ ...location, accountName: account.name }))),
+    );
+    const locations = lists.flat();
+    deps.logger.info({ accounts: accounts.length, locations: locations.length }, "google locations listed");
+    await deps.db.googleConnection.update({ where: { id: connection.id }, data: { accountsCount: accounts.length, locationsCount: locations.length, lastSyncedAt: new Date(), lastError: null } });
+    await recordApiAccess(deps, "approved");
+    return { accounts: accounts.length, locations };
+  } catch (error) {
+    if (error instanceof GbpError && error.kind === "quota_zero") {
+      deps.logger.warn({ connectionId: connection.id }, "business profile api quota is zero");
+      await recordApiAccess(deps, "not_approved");
+    }
+    throw error;
+  }
+}
+
+async function recordApiAccess(deps: Deps, apiAccess: string): Promise<void> {
+  if (deps.gbp.name === "mock") return;
+  await deps.db.appSettings.upsert({ where: { id: 1 }, create: { id: 1, apiAccess }, update: { apiAccess } });
 }
 
 export async function listAccessibleLocations(deps: Deps, connection: GoogleConnection): Promise<GbpLocation[]> {
-  const session = sessionFor(deps, connection);
-  const accounts = await session.listAccounts();
-  const lists = await Promise.all(accounts.map((account) => session.listLocations(account.accountId)));
-  return lists.flat();
+  return (await scanLocations(deps, connection)).locations;
 }
 
 export async function listUnattachedLocations(deps: Deps, workspaceId: string): Promise<GbpLocation[]> {
@@ -136,21 +159,32 @@ async function requireLocation(deps: Deps, workspaceId: string, ref: { accountId
   return { connection, location };
 }
 
+/** Creates clients at once. Their first sync runs in the background. */
 export async function importLocations(
   deps: Deps,
   workspaceId: string,
-  refs: { accountId: string; locationId: string }[],
+  selection: { refs?: { accountId: string; locationId: string }[]; all?: boolean },
 ): Promise<Client[]> {
+  const connection = await agencyConnection(deps, workspaceId);
+  if (!connection) throw new ConnectError("no_connection", "Connect the agency Google account first");
+  const available = await listUnattachedLocations(deps, workspaceId);
+  const wanted = selection.all
+    ? available
+    : (selection.refs ?? []).map((ref) => {
+        const found = available.find((l) => l.accountId === ref.accountId && l.locationId === ref.locationId);
+        if (!found) throw new ConnectError("location_not_found", "That location is not available to attach");
+        return found;
+      });
+
   const imported: Client[] = [];
-  for (const ref of refs) {
-    const { connection, location } = await requireLocation(deps, workspaceId, ref);
-    const removed = await deps.db.client.findFirst({ where: { workspaceId, gbpLocationId: location.locationId } });
-    const client =
-      removed ??
-      (await deps.db.client.create({
-        data: { workspaceId, name: location.title, status: "connected", connectionId: connection.id, address: location.address },
-      }));
-    imported.push(await bindClient(deps, { client, connection, location, method: "import" }));
+  for (const location of wanted) {
+    const previous = await deps.db.client.findFirst({ where: { workspaceId, gbpLocationId: location.locationId } });
+    const data = attachData(connection, location, "import");
+    const client = previous
+      ? await deps.db.client.update({ where: { id: previous.id }, data })
+      : await deps.db.client.create({ data: { workspaceId, name: location.title, address: location.address, ...data } });
+    await deps.enqueueConnect(client.id);
+    imported.push(client);
   }
   return imported;
 }

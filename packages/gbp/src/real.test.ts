@@ -6,10 +6,9 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 function adapter(api: (url: string) => Response): RealGbpAdapter {
   const http = (async (input: string | URL | Request) => {
     const url = String(input);
-    if (url.includes("oauth2.googleapis.com/token")) return json({ access_token: "t", expires_in: 3600 });
     return api(url);
   }) as FetchLike;
-  return new RealGbpAdapter({ clientId: "id", clientSecret: "secret", fetch: http });
+  return new RealGbpAdapter({ credentials: async () => ({ clientId: "id", clientSecret: "secret" }), fetch: http, maxQpm: 600_000, backoffBaseMs: 1 });
 }
 
 describe("toGbpError", () => {
@@ -26,6 +25,35 @@ describe("toGbpError", () => {
     expect(toGbpError(401, {}).kind).toBe("auth_revoked");
     expect(toGbpError(429, {}).kind).toBe("rate_limited");
     expect(toGbpError(404, {}).kind).toBe("not_found");
+  });
+});
+
+describe("quota handling", () => {
+  it("recognises a project with zero quota", () => {
+    const body = { error: { status: "RESOURCE_EXHAUSTED", details: [{ metadata: { quota_limit_value: "0" } }] } };
+    expect(toGbpError(429, body).kind).toBe("quota_zero");
+  });
+
+  it("treats an ordinary limit as temporary", () => {
+    expect(toGbpError(429, { error: { details: [{ metadata: { quota_limit_value: "300" } }] } }).kind).toBe("rate_limited");
+  });
+
+  it("backs off and retries on 429", async () => {
+    let calls = 0;
+    const session = adapter(() => (++calls < 3 ? json({}, 429) : json({ accounts: [] }))).session({ workspaceId: "w", tokens: { get: async () => "t" } });
+    expect(await session.listAccounts()).toEqual([]);
+    expect(calls).toBe(3);
+  });
+
+  it("gets a new token once on 401", async () => {
+    const seen: (string | undefined)[] = [];
+    let calls = 0;
+    const session = adapter(() => (++calls === 1 ? json({}, 401) : json({ accounts: [] }))).session({
+      workspaceId: "w",
+      tokens: { get: async (rejected) => (seen.push(rejected), rejected ? "fresh" : "stale") },
+    });
+    await session.listAccounts();
+    expect(seen).toEqual([undefined, "stale"]);
   });
 });
 
@@ -46,7 +74,7 @@ describe("RealGbpAdapter session", () => {
           },
         ],
       });
-    }).session({ workspaceId: "w", refreshToken: "r" });
+    }).session({ workspaceId: "w", tokens: { get: async () => "t" } });
 
     const rows = await session.getDailyMetrics("123", "2026-01-01", "2026-01-05");
     expect(rows).toContainEqual({ date: "2026-01-02", metric: "CALL_CLICKS", value: 4 });
@@ -65,7 +93,7 @@ describe("RealGbpAdapter session", () => {
       body = String(init?.body);
       return json({ name: "accounts/1/locations/2/media/3" });
     }) as FetchLike;
-    const session = new RealGbpAdapter({ clientId: "id", clientSecret: "secret", fetch: http }).session({ workspaceId: "w", refreshToken: "r" });
+    const session = new RealGbpAdapter({ credentials: async () => ({ clientId: "id", clientSecret: "secret" }), fetch: http, maxQpm: 600_000 }).session({ workspaceId: "w", tokens: { get: async () => "t" } });
 
     const result = await session.uploadPhoto({ accountId: "1", locationId: "2", sourceUrl: "https://x/a.png", category: "EXTERIOR" });
     expect(result.name).toBe("accounts/1/locations/2/media/3");
@@ -80,7 +108,7 @@ describe("RealGbpAdapter session", () => {
       bodies.push(JSON.parse(String(init?.body)));
       return json({ name: "accounts/1/locations/2/localPosts/3" });
     }) as FetchLike;
-    const session = new RealGbpAdapter({ clientId: "id", clientSecret: "secret", fetch: http }).session({ workspaceId: "w", refreshToken: "r" });
+    const session = new RealGbpAdapter({ credentials: async () => ({ clientId: "id", clientSecret: "secret" }), fetch: http, maxQpm: 600_000 }).session({ workspaceId: "w", tokens: { get: async () => "t" } });
     const post = { accountId: "1", locationId: "2", summary: "Hello", imageUrl: "https://x/a.png" };
 
     await session.publishPost({ ...post, ctaType: "CALL", ctaUrl: "https://ignored" });
@@ -93,7 +121,7 @@ describe("RealGbpAdapter session", () => {
   it("reads reviews and maps star ratings", async () => {
     const session = adapter(() =>
       json({ reviews: [{ reviewId: "r1", starRating: "TWO", comment: "Slow", createTime: "2026-01-02T00:00:00Z", reviewer: { displayName: "Asha" } }] }),
-    ).session({ workspaceId: "w", refreshToken: "r" });
+    ).session({ workspaceId: "w", tokens: { get: async () => "t" } });
     const [review] = await session.listReviews("1", "2");
     expect(review).toMatchObject({ reviewId: "r1", rating: 2, comment: "Slow", reviewerName: "Asha", replyComment: null });
   });
@@ -105,7 +133,7 @@ describe("RealGbpAdapter session", () => {
           { name: "accounts/1/invitations/2", role: "MANAGER", targetType: "LOCATIONS_ONLY", targetLocation: { locationName: "Acme", address: "1 Road" } },
         ],
       }),
-    ).session({ workspaceId: "w", refreshToken: "r" });
+    ).session({ workspaceId: "w", tokens: { get: async () => "t" } });
 
     expect(await session.listInvitations("1")).toEqual([
       { name: "accounts/1/invitations/2", accountId: "1", role: "MANAGER", targetType: "LOCATIONS_ONLY", locationName: "Acme", address: "1 Road", placeId: null },

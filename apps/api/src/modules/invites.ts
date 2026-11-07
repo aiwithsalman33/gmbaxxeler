@@ -5,7 +5,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { ApiError, type AppContext } from "../context";
 import { requireAuth, scopedClient } from "../guards";
-import { signState } from "../tokens";
+import { createState } from "../oauth-state";
 import { redirectUri } from "./google";
 
 const INVITE_TTL_MS = 7 * 86_400_000;
@@ -39,8 +39,8 @@ export function inviteRoutes(ctx: AppContext) {
 
     app.get("/public/invites/:token/start", { schema: { params: z.object({ token: z.string() }) } }, async (request, reply) => {
       const invite = await liveInvite(request.params.token);
-      const state = await signState(ctx, { workspaceId: invite.workspaceId, purpose: "invite", inviteId: invite.id });
-      return reply.redirect(deps.gbp.authUrl(state, redirectUri(ctx)));
+      const { state, codeChallenge } = await createState(ctx, { workspaceId: invite.workspaceId, purpose: "invite", inviteId: invite.id });
+      return reply.redirect(await deps.gbp.authUrl({ state, redirectUri: redirectUri(ctx), codeChallenge }));
     });
 
     await app.register(async (secured) => {

@@ -21,6 +21,10 @@ const envSchema = z.object({
   MOCK_SAMPLE_DATA: z.string().default("false").transform((value) => value === "true"),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_MAX_QPM: z.coerce.number().int().min(1).default(240),
+  AGENCY_GOOGLE_EMAIL: z.string().optional(),
+  ENABLE_CLIENT_OAUTH_LINKS: z.string().default("false").transform((value) => value === "true"),
+  AUTH_PASSWORD_ENABLED: z.string().default("true").transform((value) => value !== "false"),
   MINIO_ENDPOINT: z.string().url(),
   MINIO_ACCESS_KEY: z.string().min(1),
   MINIO_SECRET_KEY: z.string().min(1),
@@ -72,8 +76,7 @@ function productionProblems(env: Env): string[] {
     env.JWT_SECRET === DEV_JWT_SECRET && "JWT_SECRET is the development default",
     env.ENCRYPTION_KEY === DEV_ENCRYPTION_KEY && "ENCRYPTION_KEY is the development default",
     env.MAIL_PROVIDER === "dev" && "MAIL_PROVIDER cannot be dev in production",
-    env.AI_ADAPTER === "mock" && "AI_ADAPTER cannot be mock in production",
-    env.GBP_ADAPTER === "mock" && "GBP_ADAPTER cannot be mock in production",
+    env.AI_ADAPTER === "mock" && env.GBP_ADAPTER === "real" && "AI_ADAPTER cannot be mock with GBP_ADAPTER=real",
     env.MINIO_SECRET_KEY === "change-me" && "MINIO_SECRET_KEY is still the placeholder",
     env.DATABASE_URL.includes(":change-me@") && "POSTGRES_PASSWORD is still the placeholder",
   ];
@@ -93,11 +96,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     }
   }
   if (source.ENCRYPTION_KEY && !validKey(source.ENCRYPTION_KEY)) problems.push(`ENCRYPTION_KEY is invalid: ${REQUIREMENTS.ENCRYPTION_KEY}`);
-  if (source.GBP_ADAPTER === "real") {
-    for (const name of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]) {
-      if (!source[name]) problems.push(`${name} is missing, and GBP_ADAPTER=real needs it`);
-    }
-  }
   if (parsed.success && parsed.data.APP_ENV === "production") problems.push(...productionProblems(parsed.data));
   if (problems.length) throw new EnvError([...new Set(problems)]);
   return parsed.data as Env;

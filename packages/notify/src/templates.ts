@@ -7,6 +7,8 @@ export const EMAIL_TEMPLATES = [
   "negative_review",
   "failed_job",
   "draft_awaiting_approval",
+  "client_connected",
+  "google_reconnect",
   "test",
 ] as const;
 
@@ -37,7 +39,7 @@ function managerSteps(agencyEmail: string): string[] {
     "Open your Business Profile, then Menu > Business Profile settings",
     "Choose People and access > Add",
     `Enter ${agencyEmail}`,
-    "Set the role to Manager and tap Invite",
+    "Set the role to Manager, not Owner, and tap Invite",
   ];
 }
 
@@ -92,6 +94,18 @@ const CONTENT: Record<EmailTemplate, (d: EmailData) => Content> = {
     heading: "A post is waiting for you",
     paragraphs: [d.body ?? "Review it before it publishes."],
     action: { label: "Review posts", url: d.link ?? "" },
+  }),
+  client_connected: (d) => ({
+    subject: d.title ?? "A client connected",
+    heading: "A client connected",
+    paragraphs: [d.body ?? "", "Fill in their knowledge base so AI posts and replies sound like them."],
+    action: { label: "Open LocalPilot", url: d.link ?? "" },
+  }),
+  google_reconnect: (d) => ({
+    subject: d.title ?? "Reconnect your Google account",
+    heading: "Reconnect your Google account",
+    paragraphs: [d.body ?? "", "Client posts, photos and reviews are paused until you reconnect. App login isn't affected."],
+    action: { label: "Reconnect", url: d.link ?? "" },
   }),
   test: () => ({
     subject: "LocalPilot test email",

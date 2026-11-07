@@ -2,15 +2,13 @@ import { changePasswordSchema, emailOnlySchema, loginSchema, registerSchema, res
 import { hashPassword, randomToken, sha256, verifyPassword } from "@localpilot/crypto";
 import type { AuthTokenKind } from "@localpilot/db";
 import { queueEmail } from "@localpilot/services";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { signupAllowed } from "../config";
 import { ApiError, type AppContext } from "../context";
 import { ACCESS_COOKIE, REFRESH_COOKIE, requireAuth } from "../guards";
-import { signAccess } from "../tokens";
+import { cookieOptions, REFRESH_PATH, startSession } from "../session";
 
-const REFRESH_TTL_MS = 30 * 86_400_000;
-const REFRESH_PATH = "/api/v1/auth";
 const VERIFY_TTL_MS = 24 * 3_600_000;
 const RESET_TTL_MS = 3_600_000;
 export const MAX_FAILED_LOGINS = 5;
@@ -39,29 +37,11 @@ class EmailLimiter {
 export function authRoutes(ctx: AppContext) {
   const { db, deps, env } = ctx;
   const emailLimiter = new EmailLimiter(env.LOGIN_RATE_LIMIT_MAX);
-  const cookieBase = { httpOnly: true, sameSite: "lax" as const, secure: env.APP_ENV === "production" };
+  const cookieBase = cookieOptions(ctx);
   const badLogin = () => new ApiError(401, "invalid_credentials", "Email or password is incorrect");
   const badToken = () => new ApiError(400, "invalid_token", "This link is invalid or has expired");
   // Checked for unknown addresses too, so response time doesn't reveal who has an account.
   const decoyHash = hashPassword(randomToken());
-
-  async function startSession(userId: string, request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const member = await db.workspaceMember.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } });
-    if (!member) throw badLogin();
-    const refresh = randomToken();
-    await db.session.create({
-      data: {
-        userId,
-        refreshTokenHash: sha256(refresh),
-        expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
-        userAgent: request.headers["user-agent"]?.slice(0, 200),
-      },
-    });
-    const access = await signAccess(ctx, { userId, workspaceId: member.workspaceId, role: member.role });
-    reply
-      .setCookie(ACCESS_COOKIE, access, { ...cookieBase, path: "/", maxAge: 15 * 60 })
-      .setCookie(REFRESH_COOKIE, refresh, { ...cookieBase, path: REFRESH_PATH, maxAge: REFRESH_TTL_MS / 1000 });
-  }
 
   /** Only the hash is stored. Older links of the same kind stop working. */
   async function issueToken(userId: string, kind: AuthTokenKind, ttlMs: number): Promise<string> {
@@ -88,6 +68,7 @@ export function authRoutes(ctx: AppContext) {
     const app = base.withTypeProvider<ZodTypeProvider>();
     const limit = { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: "1 minute" } };
 
+    if (env.AUTH_PASSWORD_ENABLED) {
     app.post("/register", { schema: { body: registerSchema }, config: limit }, async (request) => {
       const { email, password, name } = request.body;
       const passwordHash = await hashPassword(password);
@@ -128,7 +109,7 @@ export function authRoutes(ctx: AppContext) {
       if (!user.emailVerifiedAt) throw new ApiError(403, "email_not_verified", "Verify your email before logging in");
 
       await db.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() } });
-      await startSession(user.id, request, reply);
+      await startSession(ctx, user.id, request, reply);
       return { ok: true };
     });
 
@@ -174,9 +155,11 @@ export function authRoutes(ctx: AppContext) {
       }
       await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(request.body.newPassword) } });
       await db.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
-      await startSession(user.id, request, reply);
+      await startSession(ctx, user.id, request, reply);
       return { ok: true };
     });
+
+    }
 
     app.post("/refresh", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
       const token = request.cookies[REFRESH_COOKIE];
@@ -185,7 +168,7 @@ export function authRoutes(ctx: AppContext) {
         throw new ApiError(401, "unauthenticated", "Please log in");
       }
       await db.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
-      await startSession(session.userId, request, reply);
+      await startSession(ctx, session.userId, request, reply);
       return { ok: true };
     });
 

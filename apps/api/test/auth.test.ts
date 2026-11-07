@@ -312,6 +312,17 @@ describe("sessions", () => {
   });
 });
 
+describe("password switch", () => {
+  it("turns password routes off, and keeps sessions working", async () => {
+    const off = await createHarness({ AUTH_PASSWORD_ENABLED: "false" });
+    expect((await off.app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: ALLOWED_EMAIL, password: PASSWORD } })).statusCode).toBe(404);
+    expect((await off.app.inject({ method: "POST", url: "/api/v1/auth/logout" })).statusCode).toBe(200);
+    expect((await off.app.inject({ method: "GET", url: "/api/v1/auth/options" })).json().password).toBe(false);
+    await off.app.close();
+    await off.ctx.db.$disconnect();
+  });
+});
+
 describe("mobile login", () => {
   it("no longer exists", async () => {
     expect((await post("/otp/request", { email: ALLOWED_EMAIL })).statusCode).toBe(404);

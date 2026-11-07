@@ -2,30 +2,39 @@ import { describe, expect, it } from "vitest";
 import { matchInvitation, matchLocation, normalizePhone, similarity, type PendingClient } from "./matching";
 
 const clients: PendingClient[] = [
-  { id: "a", name: "Sunrise Dental Clinic", contactPhone: "+919876543210" },
+  { id: "a", name: "Sunrise Dental Clinic", contactPhone: "+919876543210", address: "4 Main Road, Adyar, Chennai" },
   { id: "b", name: "Green Leaf Cafe", address: "12 MG Road, Bengaluru" },
+  { id: "c", name: "No Address Motors" },
 ];
 
 describe("matchInvitation", () => {
-  it("matches names despite case, punctuation and legal suffixes", () => {
-    const result = matchInvitation({ locationName: "SUNRISE DENTAL CLINIC PVT. LTD." }, clients);
-    expect(result).toMatchObject({ kind: "match", clientId: "a", method: "auto_name" });
+  it("auto-accepts only when name and address both match", () => {
+    const result = matchInvitation({ locationName: "SUNRISE DENTAL CLINIC PVT. LTD.", address: "4, Main Road, Adyar, Chennai" }, clients);
+    expect(result).toMatchObject({ kind: "match", clientId: "a" });
   });
 
-  it("matches on address when the listing name differs", () => {
-    const result = matchInvitation({ locationName: "GL Coffee House", address: "12, M.G. Road, Bengaluru" }, clients);
-    expect(result).toMatchObject({ kind: "match", clientId: "b", method: "auto_address" });
+  it("only suggests on a name match with no invitation address", () => {
+    expect(matchInvitation({ locationName: "Sunrise Dental Clinic" }, clients)).toMatchObject({ kind: "suggest", clientId: "a" });
   });
 
-  it("does not auto-match an unrelated business", () => {
+  it("only suggests when the client has no address", () => {
+    expect(matchInvitation({ locationName: "No Address Motors", address: "1 Anywhere Street" }, clients)).toMatchObject({ kind: "suggest", clientId: "c" });
+  });
+
+  it("only suggests on an address match with a different name", () => {
+    expect(matchInvitation({ locationName: "GL Coffee House", address: "12, M.G. Road, Bengaluru" }, clients)).toMatchObject({ kind: "suggest", clientId: "b" });
+  });
+
+  it("does not match an unrelated business", () => {
     expect(matchInvitation({ locationName: "Sunshine Dentists" }, clients).kind).toBe("none");
   });
 
-  it("treats the same chain name with duplicate clients as ambiguous", () => {
+  it("treats twins as ambiguous, with or without addresses", () => {
     const twins = [
-      { id: "1", name: "Acme Motors" },
-      { id: "2", name: "Acme Motors" },
+      { id: "1", name: "Acme Motors", address: "9 Park Street, Kolkata" },
+      { id: "2", name: "Acme Motors", address: "9 Park Street, Kolkata" },
     ];
+    expect(matchInvitation({ locationName: "Acme Motors", address: "9 Park Street, Kolkata" }, twins)).toMatchObject({ kind: "ambiguous" });
     expect(matchInvitation({ locationName: "Acme Motors" }, twins)).toMatchObject({ kind: "ambiguous", clientIds: ["1", "2"] });
   });
 
@@ -36,14 +45,16 @@ describe("matchInvitation", () => {
 });
 
 describe("matchLocation", () => {
-  it("prefers phone over name", () => {
-    const result = matchLocation({ title: "Totally Different", phone: "098765 43210" }, clients);
-    expect(result).toMatchObject({ kind: "match", clientId: "a", method: "auto_phone" });
+  it("accepts an exact phone match", () => {
+    expect(matchLocation({ title: "Totally Different", phone: "098765 43210" }, clients)).toMatchObject({ kind: "match", clientId: "a", method: "auto_phone" });
   });
 
-  it("falls back to the name when phones differ", () => {
-    const result = matchLocation({ title: "Green Leaf Cafe", phone: "+91 80 1111 2222" }, clients);
-    expect(result).toMatchObject({ kind: "match", clientId: "b", method: "auto_name" });
+  it("does not connect on a name alone", () => {
+    expect(matchLocation({ title: "Green Leaf Cafe", phone: "+91 80 1111 2222" }, clients).kind).toBe("none");
+  });
+
+  it("accepts name and address together", () => {
+    expect(matchLocation({ title: "Green Leaf Cafe", address: "12 MG Road, Bengaluru" }, clients)).toMatchObject({ kind: "match", clientId: "b" });
   });
 });
 

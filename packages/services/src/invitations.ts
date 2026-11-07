@@ -64,8 +64,8 @@ async function acceptAndRecord(
   });
 }
 
-async function flagForReview(deps: Deps, invitation: GbpInvitation, reason: string, isNew: boolean): Promise<void> {
-  await deps.db.gbpInvitation.update({ where: { id: invitation.id }, data: { status: "needs_review", matchReason: reason } });
+async function flagForReview(deps: Deps, invitation: GbpInvitation, reason: string, isNew: boolean, suggestedClientId: string | null = null): Promise<void> {
+  await deps.db.gbpInvitation.update({ where: { id: invitation.id }, data: { status: "needs_review", matchReason: reason, suggestedClientId } });
   if (!isNew) return;
   await notify(deps, {
     workspaceId: invitation.workspaceId,
@@ -108,7 +108,7 @@ async function handleInvitations(
       }
       const match = matchInvitation(item, pool);
       if (match.kind !== "match") {
-        await flagForReview(deps, record, match.reason, isNew);
+        await flagForReview(deps, record, match.reason, isNew, match.kind === "suggest" ? match.clientId : null);
         summary.needsReview++;
         continue;
       }

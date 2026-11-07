@@ -2,6 +2,8 @@
 
 Automates Google Business Profile management for agencies: client connection, dashboards, an image library, scheduled photos, SEO posts and review replies.
 
+**How Google fits together:** you log in with your own Google account or a password. A separate agency Google account holds Manager access to every client profile, and it's connected once in Settings > Google. One Google Cloud project serves the whole app, and clients never need one.
+
 Deploying to a VPS? See [docs/deploy-dokploy.md](docs/deploy-dokploy.md).
 
 > **Storage:** MinIO has archived its open-source server, so `docker-compose.yml` uses the `pgsty/minio` community fork, pinned by digest. See `docs/storage-decision.md`.
@@ -32,13 +34,13 @@ Five wrong passwords lock an account for 15 minutes. Forgot password works from 
 
 ### Try the client flow with the mock adapter
 
-The mock Google account starts empty. Add `MOCK_SAMPLE_DATA=true` to your local `.env` before first connecting Google to get sample businesses, reviews and metrics. Tests use these too. Production refuses the mock adapter.
+The mock Google account starts empty. Add `MOCK_SAMPLE_DATA=true` to `.env` before first connecting Google to get 10 sample businesses across two accounts, with reviews and metrics. `GBP_ADAPTER=mock` also works in production, so the app stays usable until Google approves API access. Nothing in mock mode reaches Google.
 
 1. In **Account Settings**, choose **Connect Google**.
 2. In **Clients**, tick three locations and import them. Switch between them from the top-right dropdown.
 3. Choose **Add client** and enter a business name and an email or mobile number. **Send invite by email** sends the guide. **Copy message** is there for WhatsApp.
 4. Choose **Simulate invite**, then **Check now**. The worker also does this every 10 minutes.
-5. The client becomes **Connected** and the notification bell shows it.
+5. A client with a matching name and address connects by itself. Anything less goes to **Unmatched invitations** for you to accept. **Simulate invitations** creates one of each.
 
 To test the review path, add a client, then call `POST /api/v1/dev/mock/invitations` with an unrelated `locationName`. To test lost access, call `POST /api/v1/dev/mock/clients/:id/revoke` and press **Refresh** on the dashboard.
 
@@ -99,15 +101,22 @@ The primary flow is the manager invitation:
 2. The client adds that account as Manager under People and access.
 3. `poll-invitations` runs every 10 minutes and accepts invitations that match a pending client.
 
-Google's invitation includes only a location name, sometimes an address and sometimes a place ID. It has no phone number, so before accepting we compare name and address only. Anything unmatched, ambiguous or account-level goes to review on the Clients page and is never accepted automatically. Phone matching runs once a location is accessible.
+Google's invitation includes only a location name, sometimes an address and sometimes a place ID. Auto-accept needs both the name and the address to match, so add the client's address when you create them. A partial match appears in **Unmatched invitations** with a suggested client and a one-click Accept. A wrong business never connects by itself.
 
-The fallback is a per-client sign-in link, created from the guide dialog.
+A per-client sign-in link also exists, hidden behind `ENABLE_CLIENT_OAUTH_LINKS=true`, because outside users see Google's unverified-app warning until the app is verified.
 
 ## Going live with Google
 
-Set `GBP_ADAPTER=real` with OAuth credentials, and add `https://gmb.axxeler.in/api/v1/google/oauth/callback` as a redirect URI. Your Google Cloud project has 0 QPM until Google approves it. A verified Business Profile active for 60+ days and a website are required.
+The steps are in **Settings > Google**, along with a live status checklist. Add both of these redirect URIs to your OAuth client:
 
-The real adapter has unit tests against stubbed responses. It has not run against live Google yet.
+- `https://gmb.axxeler.in/api/v1/google/oauth/callback`
+- `https://gmb.axxeler.in/api/v1/auth/google/callback`
+
+Set `GBP_ADAPTER=real` once Google approves Business Profile API access. Until then, every Business Profile call fails with a zero quota, and Settings shows "API access: not approved". Google login doesn't need this approval.
+
+While the OAuth consent screen is in Testing mode, refresh tokens expire after 7 days. Add the agency account as a Test user and reconnect it weekly until the app is published. Both accounts must be Test users to sign in.
+
+The real adapter has been tested against a fake Google server, not live Google.
 
 ## Troubleshooting deploy
 
@@ -146,4 +155,4 @@ Full steps are in [docs/deploy-dokploy.md](docs/deploy-dokploy.md). In short:
 3. In **Domains**, set `gmb.axxeler.in` to service `caddy`, port `8080`, with HTTPS on.
 4. Deploy, then check `https://gmb.axxeler.in/api/health`.
 
-The API refuses to start with `APP_ENV=production` if it finds development secrets, a mock adapter, the dev mail provider or missing SMTP settings.
+The API refuses to start with `APP_ENV=production` if it finds development secrets, the dev mail provider or missing SMTP settings. Google credentials are optional at startup.

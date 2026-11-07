@@ -7,7 +7,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import type { Client, Guide } from "@/lib/types";
+import type { Client, GoogleStatus, Guide } from "@/lib/types";
 
 const EMPTY = { businessName: "", contactPhone: "", contactEmail: "", address: "", notes: "" };
 
@@ -49,7 +49,7 @@ export function AddClientDialog({ open, onOpenChange, onCreated }: { open: boole
           </div>
         </div>
         <div>
-          <Label htmlFor="address">Business address (optional)</Label>
+          <Label htmlFor="address">Business address (needed to connect automatically)</Label>
           <Input id="address" value={form.address} onChange={set("address")} />
         </div>
         <div>
@@ -79,6 +79,7 @@ export function GuideDialog({ client, onClose, onSent }: { client: Client | null
     setInviteUrl(null);
   }, [clientId]);
 
+  const googleStatus = useQuery({ queryKey: ["google-status"], queryFn: () => api<GoogleStatus>("/settings/google/status") });
   const guide = useQuery({
     queryKey: ["guide", clientId],
     queryFn: () => api<Guide>(`/clients/${clientId}/guide`),
@@ -138,6 +139,7 @@ export function GuideDialog({ client, onClose, onSent }: { client: Client | null
           {sendEmail.isError && <p className="mt-2 text-sm text-bad">{sendEmail.error.message}</p>}
           {send.isError && <p className="mt-2 text-sm text-bad">{send.error.message}</p>}
 
+          {googleStatus.data?.clientOauthLinks && (
           <div className="mt-5 border-t border-line pt-4">
             <p className="text-sm font-medium">Can&apos;t add a manager?</p>
             <p className="mt-1 text-xs text-muted">Send a sign-in link instead. The client connects with their own Google account.</p>
@@ -149,6 +151,7 @@ export function GuideDialog({ client, onClose, onSent }: { client: Client | null
               </Button>
             )}
           </div>
+          )}
         </>
       )}
     </Dialog>

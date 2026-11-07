@@ -8,11 +8,11 @@ import { scopedClient } from "../guards";
 
 const params = z.object({ id: z.string().uuid() });
 
-/** Registered only with the mock adapter outside production. */
+/** Registered only with the mock adapter, which never reaches Google. */
 export function devRoutes(ctx: AppContext) {
   return async (base: FastifyInstance) => {
     const { gbp } = ctx.deps;
-    if (!(gbp instanceof MockGbpAdapter) || ctx.env.APP_ENV === "production") return;
+    if (!(gbp instanceof MockGbpAdapter)) return;
     const app = base.withTypeProvider<ZodTypeProvider>();
 
     app.get("/dev/mock/enabled", async () => ({ enabled: true }));
@@ -67,6 +67,17 @@ export function devRoutes(ctx: AppContext) {
 
     app.post("/dev/mock/fail-uploads", { schema: { body: z.object({ count: z.number().int().min(0).max(20) }) } }, async (request) => {
       await gbp.simulateUploadFailures(request.auth.workspaceId, request.body.count);
+      return { ok: true };
+    });
+
+    app.post("/dev/mock/sample-invitations", async (request) => {
+      const client = await ctx.db.client.findFirst({ where: { workspaceId: request.auth.workspaceId, status: { in: ["invited", "waiting_for_access"] }, address: { not: null } } });
+      await gbp.simulateSampleInvitations(request.auth.workspaceId, { locationName: client?.name ?? "Riverside Physio Clinic", address: client?.address ?? "12 River Road, Chennai" });
+      return { ok: true };
+    });
+
+    app.post("/dev/mock/connection/revoke", async (request) => {
+      await gbp.simulateTokenRevoked(request.auth.workspaceId);
       return { ok: true };
     });
 

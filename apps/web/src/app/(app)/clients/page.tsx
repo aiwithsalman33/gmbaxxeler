@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw, Users } from "lucide-react";
+import { RefreshCw, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AddClientDialog, GuideDialog } from "./client-dialogs";
 import { useClients } from "@/components/client-switcher";
+import { LocationChecklist } from "@/components/location-checklist";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
@@ -13,11 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import type { Client, Connection, GbpLocation, Invitation } from "@/lib/types";
+import type { Client, Connection, Invitation } from "@/lib/types";
 
 const PENDING = ["invited", "waiting_for_access"];
-
-const locationKey = (location: GbpLocation) => `${location.accountId}/${location.locationId}`;
 
 export default function ClientsPage() {
   const queryClient = useQueryClient();
@@ -25,7 +24,6 @@ export default function ClientsPage() {
   const connections = useQuery({ queryKey: ["connections"], queryFn: () => api<Connection[]>("/google/connections") });
   const agency = connections.data?.find((connection) => connection.source === "agency" && connection.status === "active");
   const invitations = useQuery({ queryKey: ["invitations"], queryFn: () => api<Invitation[]>("/invitations") });
-  const locations = useQuery({ queryKey: ["locations"], queryFn: () => api<GbpLocation[]>("/locations/unattached"), enabled: Boolean(agency) });
   const mock = useQuery({
     queryKey: ["mock"],
     queryFn: () => api<{ enabled: boolean }>("/dev/mock/enabled").catch(() => ({ enabled: false })),
@@ -34,7 +32,7 @@ export default function ClientsPage() {
 
   const [adding, setAdding] = useState(false);
   const [guideFor, setGuideFor] = useState<Client | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showLocations, setShowLocations] = useState(false);
   const [matchTo, setMatchTo] = useState<Record<string, string>>({});
   const [pollNote, setPollNote] = useState<string | null>(null);
 
@@ -50,15 +48,9 @@ export default function ClientsPage() {
     mutationFn: (id: string) => api(`/dev/mock/clients/${id}/invite`, { method: "POST" }),
     onSuccess: () => setPollNote("Mock invitation created. It would be picked up within 10 minutes, or use Check now."),
   });
-  const importClients = useMutation({
-    mutationFn: () => {
-      const refs = (locations.data ?? []).filter((location) => selected.has(locationKey(location)));
-      return api("/clients/import", { method: "POST", body: { locations: refs.map(({ accountId, locationId }) => ({ accountId, locationId })) } });
-    },
-    onSuccess: () => {
-      setSelected(new Set());
-      refreshAll();
-    },
+  const simulateSample = useMutation({
+    mutationFn: () => api("/dev/mock/sample-invitations", { method: "POST" }),
+    onSuccess: () => setPollNote("Two mock invitations created: one clean match and one unsure. Use Check now."),
   });
   const matchInvitation = useMutation({
     mutationFn: ({ id, clientId }: { id: string; clientId: string }) => api(`/invitations/${id}/match`, { method: "POST", body: { clientId } }),
@@ -70,7 +62,7 @@ export default function ClientsPage() {
   const all = clients.data ?? [];
   const pending = all.filter((client) => PENDING.includes(client.status));
   const others = all.filter((client) => !PENDING.includes(client.status));
-  const mutationError = check.error ?? importClients.error ?? matchInvitation.error ?? decline.error ?? simulate.error;
+  const mutationError = check.error ?? matchInvitation.error ?? decline.error ?? simulate.error ?? simulateSample.error;
 
   return (
     <>
@@ -83,10 +75,11 @@ export default function ClientsPage() {
               <RefreshCw className={check.isPending ? "size-4 animate-spin" : "size-4"} />
               Check now
             </Button>
-            <Button onClick={() => setAdding(true)}>
-              <Plus className="size-4" />
-              Add client
-            </Button>
+            {mock.data?.enabled && (
+              <Button variant="ghost" disabled={simulateSample.isPending} onClick={() => simulateSample.mutate()}>
+                Simulate invitations
+              </Button>
+            )}
           </>
         }
       />
@@ -98,7 +91,7 @@ export default function ClientsPage() {
             <p className="mt-1 text-sm text-muted">Clients add this account as Manager, so it comes first.</p>
           </div>
           <Button asChild>
-            <Link href="/settings">Connect Google</Link>
+            <Link href="/settings/google">Connect Google</Link>
           </Button>
         </Card>
       )}
@@ -107,6 +100,32 @@ export default function ClientsPage() {
         <p role="alert" className="mb-4 text-sm text-bad">
           {mutationError.message}
         </p>
+      )}
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardTitle>Already have access</CardTitle>
+          <p className="mt-1 mb-4 text-sm text-muted">Import businesses the agency Google account already manages.</p>
+          {agency ? (
+            <Button variant="secondary" onClick={() => setShowLocations(!showLocations)}>
+              {showLocations ? "Hide locations" : "Choose locations"}
+            </Button>
+          ) : (
+            <Button asChild variant="secondary">
+              <Link href="/settings/google">Connect Google</Link>
+            </Button>
+          )}
+        </Card>
+        <Card>
+          <CardTitle>Request access from a client</CardTitle>
+          <p className="mt-1 mb-4 text-sm text-muted">Send a guide asking them to add your agency account as Manager.</p>
+          <Button onClick={() => setAdding(true)}>Add client</Button>
+        </Card>
+      </div>
+      {agency && showLocations && (
+        <div className="mb-6">
+          <LocationChecklist connectionId={agency.id} />
+        </div>
       )}
 
       {clients.isPending ? (
@@ -140,8 +159,8 @@ export default function ClientsPage() {
 
           {(invitations.data?.length ?? 0) > 0 && (
             <Card>
-              <CardTitle>Invitations to review</CardTitle>
-              <p className="mt-1 text-sm text-muted">These couldn&apos;t be matched safely, so they weren&apos;t accepted.</p>
+              <CardTitle>Unmatched invitations</CardTitle>
+              <p className="mt-1 text-sm text-muted">These weren&apos;t a confident match, so they weren&apos;t accepted. Choose a client and accept, or decline.</p>
               <ul className="mt-3 divide-y divide-line">
                 {invitations.data?.map((invitation) => (
                   <li key={invitation.id} className="flex flex-wrap items-center gap-3 py-3">
@@ -152,7 +171,7 @@ export default function ClientsPage() {
                     <select
                       aria-label={`Client for ${invitation.locationName}`}
                       className="h-8 max-w-48 rounded-lg border border-line bg-white px-2 text-xs"
-                      value={matchTo[invitation.id] ?? ""}
+                      value={matchTo[invitation.id] ?? invitation.suggestedClientId ?? ""}
                       onChange={(event) => setMatchTo({ ...matchTo, [invitation.id]: event.target.value })}
                     >
                       <option value="">Choose a client</option>
@@ -164,8 +183,8 @@ export default function ClientsPage() {
                     </select>
                     <Button
                       size="sm"
-                      disabled={!matchTo[invitation.id] || matchInvitation.isPending}
-                      onClick={() => matchInvitation.mutate({ id: invitation.id, clientId: matchTo[invitation.id]! })}
+                      disabled={!(matchTo[invitation.id] ?? invitation.suggestedClientId) || matchInvitation.isPending}
+                      onClick={() => matchInvitation.mutate({ id: invitation.id, clientId: (matchTo[invitation.id] ?? invitation.suggestedClientId)! })}
                     >
                       Accept
                     </Button>
@@ -174,46 +193,6 @@ export default function ClientsPage() {
                     </Button>
                   </li>
                 ))}
-              </ul>
-            </Card>
-          )}
-
-          {(locations.data?.length ?? 0) > 0 && (
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <CardTitle>Locations you can import</CardTitle>
-                  <p className="mt-1 text-sm text-muted">The agency account already manages these.</p>
-                </div>
-                <Button disabled={selected.size === 0 || importClients.isPending} onClick={() => importClients.mutate()}>
-                  Import {selected.size || ""} selected
-                </Button>
-              </div>
-              <ul className="mt-3 divide-y divide-line">
-                {locations.data?.map((location) => {
-                  const key = locationKey(location);
-                  return (
-                    <li key={key}>
-                      <label className="flex cursor-pointer items-center gap-3 py-3">
-                        <input
-                          type="checkbox"
-                          className="size-4 accent-primary"
-                          checked={selected.has(key)}
-                          onChange={(event) => {
-                            const next = new Set(selected);
-                            if (event.target.checked) next.add(key);
-                            else next.delete(key);
-                            setSelected(next);
-                          }}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium">{location.title}</span>
-                          <span className="block truncate text-xs text-muted">{location.address}</span>
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
               </ul>
             </Card>
           )}
@@ -235,7 +214,7 @@ export default function ClientsPage() {
             </Card>
           )}
 
-          {all.length === 0 && (locations.data?.length ?? 0) === 0 && (
+          {all.length === 0 && (
             <EmptyState
               icon={Users}
               title="No clients yet"

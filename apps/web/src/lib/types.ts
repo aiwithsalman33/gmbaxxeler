@@ -33,14 +33,18 @@ export interface Invitation {
   role: string;
   targetType: string;
   matchReason: string | null;
+  suggestedClientId: string | null;
 }
 
 export interface GbpLocation {
   accountId: string;
+  accountName: string | null;
   locationId: string;
   title: string;
   address: string | null;
   phone: string | null;
+  categories: string[];
+  clientId: string | null;
 }
 
 export interface Connection {
@@ -48,6 +52,29 @@ export interface Connection {
   googleAccountEmail: string;
   status: string;
   source: string;
+  scopes: string[];
+  lastSyncedAt: string | null;
+  accountsCount: number;
+  locationsCount: number;
+  lastError: string | null;
+  needsConfirmation: boolean;
+}
+
+export interface GoogleCredentials {
+  source: "settings" | "env" | "none";
+  clientId: string | null;
+  maskedSecret: string | null;
+  status: "valid" | "invalid" | "unknown";
+  redirectUris: string[];
+}
+
+export interface GoogleStatus {
+  adapter: "mock" | "real";
+  credentialsSet: boolean;
+  agencyConnected: boolean;
+  apiAccess: "approved" | "not_approved" | "unknown";
+  expectedAgencyEmail: string | null;
+  clientOauthLinks: boolean;
 }
 
 export interface Me {

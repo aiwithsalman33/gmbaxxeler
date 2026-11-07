@@ -1,9 +1,10 @@
-import { decryptSecret } from "@localpilot/crypto";
 import type { Db, GoogleConnection, NotificationSeverity } from "@localpilot/db";
 import type { GbpAdapter, GbpSession } from "@localpilot/gbp";
+import type { GoogleCredentials } from "@localpilot/gbp";
 import type { MailProvider, Messenger } from "@localpilot/notify";
 import type { Storage } from "@localpilot/storage";
 import { deliverAlert, EMAILED_INFO_TYPES } from "./alerts";
+import { connectionTokens } from "./connections";
 import type { MailJob } from "./mail";
 
 export interface Logger {
@@ -24,19 +25,26 @@ export interface Deps {
   enqueueMail: (job: MailJob) => Promise<void>;
   mailDailyCap: number;
   appUrl: string;
+  enqueueConnect: (clientId: string) => Promise<void>;
+  googleEnv: Partial<GoogleCredentials>;
+  googleHttp: typeof fetch;
+  agencyEmail: string | null;
 }
 
 export const PENDING_STATUSES = ["invited", "waiting_for_access"] as const;
 
 export function sessionFor(deps: Deps, connection: GoogleConnection): GbpSession {
-  return deps.gbp.session({
-    workspaceId: connection.workspaceId,
-    refreshToken: decryptSecret(connection.refreshTokenEnc, deps.encryptionKey),
-  });
+  return deps.gbp.session({ workspaceId: connection.workspaceId, tokens: connectionTokens(deps, connection) });
 }
 
-export function agencyConnection(deps: Deps, workspaceId: string): Promise<GoogleConnection | null> {
-  return deps.db.googleConnection.findFirst({ where: { workspaceId, source: "agency", status: "active" } });
+/** Unexpected accounts stay inactive until someone confirms them. */
+export async function agencyConnection(deps: Deps, workspaceId: string): Promise<GoogleConnection | null> {
+  const connection = await deps.db.googleConnection.findFirst({ where: { workspaceId, source: "agency", status: "active" } });
+  return connection && !needsConfirmation(deps, connection) ? connection : null;
+}
+
+export function needsConfirmation(deps: Deps, connection: Pick<GoogleConnection, "googleAccountEmail" | "mismatchConfirmedAt">): boolean {
+  return Boolean(deps.agencyEmail && connection.googleAccountEmail.toLowerCase() !== deps.agencyEmail && !connection.mismatchConfirmedAt);
 }
 
 export async function notify(

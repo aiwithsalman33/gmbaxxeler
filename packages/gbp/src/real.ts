@@ -1,12 +1,15 @@
 import { DAILY_METRICS, fillZeroGaps } from "@localpilot/core";
-import { GbpError, type GbpAccount, type GbpAdapter, type GbpIdentity, type GbpInvitationItem, type GbpLocation, type GbpMetricRow, type GbpSession, type GbpSessionContext, type GbpReview, type GbpStats, type PhotoUpload, type PostPublish } from "./types";
+import { RateLimiter } from "./limiter";
+import { BUSINESS_SCOPE, consentUrl, exchangeCode, IDENTITY_SCOPES, readIdToken, revokeToken, type GoogleCredentials } from "./oauth";
+import { GbpError, type ConsentRequest, type ExchangeContext, type GbpAccount, type GbpAdapter, type GbpIdentity, type GbpInvitationItem, type GbpLocation, type GbpMetricRow, type GbpSession, type GbpSessionContext, type GbpReview, type GbpStats, type PhotoUpload, type PostPublish, type TokenSource } from "./types";
 
 const ACCOUNTS_API = "https://mybusinessaccountmanagement.googleapis.com/v1";
 const INFO_API = "https://mybusinessbusinessinformation.googleapis.com/v1";
 const PERFORMANCE_API = "https://businessprofileperformance.googleapis.com/v1";
 const V4_API = "https://mybusiness.googleapis.com/v4";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
-const SCOPES = ["https://www.googleapis.com/auth/business.manage", "openid", "email"];
+const MAX_RETRIES = 3;
+const BACKOFF_BASE_MS = 1000;
+const DEFAULT_QPM = 240;
 const LOCATION_FIELDS = "name,title,phoneNumbers,storefrontAddress,websiteUri,categories,regularHours,profile,serviceItems,serviceArea,metadata";
 const REPLY_SAMPLE = 50;
 const STAR_RATINGS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
@@ -24,9 +27,10 @@ const PROJECT_LEVEL_REASONS = new Set([
 export type FetchLike = typeof fetch;
 
 interface GoogleConfig {
-  clientId: string;
-  clientSecret: string;
+  credentials: () => Promise<GoogleCredentials | null>;
   fetch?: FetchLike;
+  maxQpm?: number;
+  backoffBaseMs?: number;
 }
 
 function errorReason(body: unknown): string | null {
@@ -38,6 +42,10 @@ export function toGbpError(status: number, body: unknown): GbpError {
   const reason = errorReason(body);
   if (status === 401 || (body as { error?: string })?.error === "invalid_grant") {
     return new GbpError("auth_revoked", "Google authorization is no longer valid");
+  }
+  // A limit of 0 is an unapproved project, so retrying can never help.
+  if ((status === 429 || status === 403) && /quota_limit_value"?:\s*"?0"?\b/.test(JSON.stringify(body))) {
+    return new GbpError("quota_zero", "Business Profile API access not yet approved for this project");
   }
   if (status === 429) return new GbpError("rate_limited", "Google rate limit reached");
   if (status === 403) {
@@ -54,42 +62,31 @@ function formatAddress(address: { addressLines?: string[]; locality?: string; ad
 }
 
 class RealSession implements GbpSession {
-  private accessToken: string | null = null;
-  private expiresAt = 0;
-
   constructor(
-    private readonly config: GoogleConfig,
-    private readonly refreshToken: string,
+    private readonly tokens: TokenSource,
     private readonly http: FetchLike,
+    private readonly limiter: RateLimiter,
+    private readonly backoffBaseMs: number,
   ) {}
 
-  private async token(): Promise<string> {
-    if (this.accessToken && Date.now() < this.expiresAt) return this.accessToken;
-    const response = await this.http(TOKEN_URL, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-        refresh_token: this.refreshToken,
-        grant_type: "refresh_token",
-      }),
-    });
-    const body = (await response.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error?: string };
-    if (!response.ok || !body.access_token) throw toGbpError(response.status === 400 ? 401 : response.status, body);
-    this.accessToken = body.access_token;
-    this.expiresAt = Date.now() + ((body.expires_in ?? 3600) - 60) * 1000;
-    return body.access_token;
-  }
-
   private async call<T>(url: string, init?: RequestInit): Promise<T> {
-    const response = await this.http(url, {
-      ...init,
-      headers: { authorization: `Bearer ${await this.token()}`, "content-type": "application/json" },
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw toGbpError(response.status, body);
-    return body as T;
+    let token = await this.tokens.get();
+    let refreshed = false;
+    for (let attempt = 0; ; attempt++) {
+      await this.limiter.acquire();
+      const response = await this.http(url, { ...init, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" } });
+      if (response.ok) return (await response.json().catch(() => ({}))) as T;
+
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 401 && !refreshed) {
+        refreshed = true;
+        token = await this.tokens.get(token);
+        continue;
+      }
+      const error = toGbpError(response.status, body);
+      if (error.kind !== "rate_limited" || attempt >= MAX_RETRIES) throw error;
+      await new Promise((resolve) => setTimeout(resolve, this.backoffBaseMs * 2 ** attempt));
+    }
   }
 
   private async paged<T>(url: string, key: string): Promise<T[]> {
@@ -151,6 +148,7 @@ class RealSession implements GbpSession {
 
     return locations.map((l) => ({
       accountId,
+      accountName: null,
       locationId: l.name.replace("locations/", ""),
       title: l.title ?? l.name,
       phone: l.phoneNumbers?.primaryPhone ?? null,
@@ -265,53 +263,37 @@ class RealSession implements GbpSession {
 export class RealGbpAdapter implements GbpAdapter {
   readonly name = "real" as const;
   private readonly http: FetchLike;
+  private readonly limiter: RateLimiter;
 
   constructor(private readonly config: GoogleConfig) {
     this.http = config.fetch ?? fetch;
+    this.limiter = new RateLimiter(config.maxQpm ?? DEFAULT_QPM);
   }
 
-  authUrl(state: string, redirectUri: string): string {
-    const params = new URLSearchParams({
-      client_id: this.config.clientId,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      scope: SCOPES.join(" "),
-      access_type: "offline",
-      prompt: "consent",
-      state,
-    });
-    return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  private async credentials(): Promise<GoogleCredentials> {
+    const credentials = await this.config.credentials();
+    if (!credentials) throw new GbpError("not_configured", "Google credentials aren't set");
+    return credentials;
   }
 
-  async exchangeCode(code: string, redirectUri: string): Promise<GbpIdentity> {
-    const response = await this.http(TOKEN_URL, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: "authorization_code",
-      }),
-    });
-    const tokens = (await response.json()) as { refresh_token?: string; access_token?: string; scope?: string };
-    if (!response.ok || !tokens.refresh_token || !tokens.access_token) {
-      throw new GbpError("unavailable", "Google did not return a refresh token");
-    }
-    const info = await this.http("https://openidconnect.googleapis.com/v1/userinfo", {
-      headers: { authorization: `Bearer ${tokens.access_token}` },
-    });
-    const user = (await info.json()) as { sub?: string; email?: string };
-    if (!info.ok || !user.sub || !user.email) throw new GbpError("unavailable", "Could not read the Google profile");
-    return { refreshToken: tokens.refresh_token, email: user.email, subject: user.sub, scopes: (tokens.scope ?? "").split(" ") };
+  async authUrl({ state, redirectUri, codeChallenge, loginHint }: ConsentRequest): Promise<string> {
+    const { clientId } = await this.credentials();
+    return consentUrl({ clientId, redirectUri, scopes: [...IDENTITY_SCOPES, BUSINESS_SCOPE], state, codeChallenge, loginHint, offline: true });
   }
 
-  async revoke(refreshToken: string): Promise<void> {
-    await this.http(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`, { method: "POST" });
+  async exchangeCode(code: string, redirectUri: string, context: ExchangeContext): Promise<GbpIdentity> {
+    const credentials = await this.credentials();
+    const tokens = await exchangeCode(this.http, credentials, { code, redirectUri, codeVerifier: context.codeVerifier });
+    if (!tokens.idToken) throw new GbpError("unavailable", "Google didn't return an identity");
+    const identity = readIdToken(tokens.idToken, credentials.clientId);
+    return { refreshToken: tokens.refreshToken, email: identity.email, subject: identity.subject, name: identity.name, scopes: tokens.scopes };
+  }
+
+  revoke(refreshToken: string): Promise<void> {
+    return revokeToken(this.http, refreshToken);
   }
 
   session(context: GbpSessionContext): GbpSession {
-    return new RealSession(this.config, context.refreshToken, this.http);
+    return new RealSession(context.tokens, this.http, this.limiter, this.config.backoffBaseMs ?? BACKOFF_BASE_MS);
   }
 }

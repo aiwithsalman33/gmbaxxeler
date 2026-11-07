@@ -1,7 +1,7 @@
 import { deflateSync } from "node:zlib";
 import { randomBytes } from "node:crypto";
 import type { MailMessage, MailProvider } from "@localpilot/notify";
-import { deliverEmail } from "@localpilot/services";
+import { deliverEmail, finishConnect } from "@localpilot/services";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app";
 import { createContext } from "../src/bootstrap";
@@ -21,7 +21,7 @@ export interface Harness {
   mailFailures: { count: number };
 }
 
-export async function createHarness(overrides: Record<string, string> = {}): Promise<Harness> {
+export async function createHarness(overrides: Record<string, string> = {}, options: { googleHttp?: typeof fetch } = {}): Promise<Harness> {
   // Set TEST_S3_URL to run against a real server, such as the one in docker-compose.yml.
   const realS3 = process.env.TEST_S3_URL;
   const s3 = realS3 ? { url: realS3, server: null } : await startFakeS3();
@@ -41,6 +41,7 @@ export async function createHarness(overrides: Record<string, string> = {}): Pro
     MINIO_BUCKET: "localpilot-test",
     AI_ADAPTER: "mock",
     MOCK_SAMPLE_DATA: "true",
+    ENABLE_CLIENT_OAUTH_LINKS: "true",
     RATE_LIMIT_MAX: "100000",
     LOGIN_RATE_LIMIT_MAX: "100000",
     ...overrides,
@@ -61,6 +62,8 @@ export async function createHarness(overrides: Record<string, string> = {}): Pro
     mailProvider,
     // Delivers at once, standing in for the worker.
     enqueueMail: (job) => deliverEmail(ctx.deps, job).catch(() => undefined),
+    enqueueConnect: (clientId) => finishConnect(ctx.deps, clientId),
+    ...options,
   });
   await ctx.storage.ensureBucket();
   const app = await buildApp(ctx);
@@ -72,7 +75,7 @@ export async function createHarness(overrides: Record<string, string> = {}): Pro
 
 export async function resetDb({ ctx }: Harness): Promise<void> {
   await ctx.db.$executeRawUnsafe(
-    `TRUNCATE users, sessions, workspaces, mock_gbp_state, email_log CASCADE`,
+    `TRUNCATE users, sessions, workspaces, mock_gbp_state, email_log, oauth_states CASCADE`,
   );
 }
 

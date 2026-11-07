@@ -3,6 +3,7 @@ export * from "./alerts";
 export * from "./context";
 export * from "./guide";
 export * from "./connect";
+export * from "./connections";
 export * from "./invitations";
 export * from "./knowledge";
 export * from "./mail";

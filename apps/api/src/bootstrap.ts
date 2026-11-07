@@ -2,7 +2,7 @@ import { parseKey } from "@localpilot/crypto";
 import { createDb } from "@localpilot/db";
 import { createGbpAdapter } from "@localpilot/gbp";
 import { createMailProvider, Messenger } from "@localpilot/notify";
-import type { Deps, Logger } from "@localpilot/services";
+import { resolveCredentials, type Deps, type Logger } from "@localpilot/services";
 import { Storage } from "@localpilot/storage";
 import type { Env } from "./config";
 import type { AppContext } from "./context";
@@ -12,7 +12,7 @@ export function createContext(
   env: Env,
   logger: Logger,
   log: (message: string) => void,
-  overrides: Partial<Pick<Deps, "mailProvider" | "enqueueMail">> = {},
+  overrides: Partial<Pick<Deps, "mailProvider" | "enqueueMail" | "enqueueConnect" | "googleHttp">> = {},
 ): AppContext {
   const db = createDb(env.DATABASE_URL);
   const storage = new Storage({
@@ -29,19 +29,23 @@ export function createContext(
     log,
   });
   const queue = overrides.enqueueMail ? null : new MailQueue(env.DATABASE_URL);
-  return {
-    env,
-    db,
-    jwtKey: new TextEncoder().encode(env.JWT_SECRET),
-    stopQueue: async () => queue?.stop(),
-    storage,
-    deps: {
+  const googleHttp = overrides.googleHttp ?? fetch;
+  const agencyEmail = env.AGENCY_GOOGLE_EMAIL?.trim().toLowerCase() || null;
+  const deps: Deps = {
       db,
       logger,
       storage,
       aiAdapter: env.AI_ADAPTER,
       encryptionKey: parseKey(env.ENCRYPTION_KEY),
-      gbp: createGbpAdapter({ adapter: env.GBP_ADAPTER, db, clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, mockSample: env.MOCK_SAMPLE_DATA }),
+      gbp: createGbpAdapter({
+        adapter: env.GBP_ADAPTER,
+        db,
+        credentials: () => resolveCredentials(deps),
+        fetch: googleHttp,
+        maxQpm: env.GOOGLE_MAX_QPM,
+        mockSample: env.MOCK_SAMPLE_DATA,
+        mockEmail: agencyEmail,
+      }),
       messenger,
       mailProvider:
         overrides.mailProvider ??
@@ -58,6 +62,10 @@ export function createContext(
       enqueueMail: overrides.enqueueMail ?? ((job) => queue!.send(job)),
       mailDailyCap: env.MAIL_DAILY_CAP,
       appUrl: env.APP_URL,
-    },
+      enqueueConnect: overrides.enqueueConnect ?? ((clientId) => queue!.sendConnect(clientId)),
+      googleEnv: { clientId: env.GOOGLE_CLIENT_ID || undefined, clientSecret: env.GOOGLE_CLIENT_SECRET || undefined },
+      googleHttp,
+      agencyEmail,
   };
+  return { env, db, jwtKey: new TextEncoder().encode(env.JWT_SECRET), stopQueue: async () => queue?.stop(), storage, deps };
 }

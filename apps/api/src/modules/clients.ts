@@ -6,6 +6,7 @@ import {
   ensureFolders,
   guideMessage,
   importLocations,
+  listAccessibleLocations,
   listUnattachedLocations,
   matchInvitationManually,
   matchLocationManually,
@@ -61,7 +62,7 @@ export function clientRoutes(ctx: AppContext) {
     });
 
     app.post("/clients/import", { schema: { body: importClientsSchema } }, async (request) => {
-      return importLocations(deps, request.auth.workspaceId, request.body.locations);
+      return importLocations(deps, request.auth.workspaceId, { refs: request.body.locations, all: request.body.all });
     });
 
     app.post("/clients/check-invitations", { config: { rateLimit: { max: 12, timeWindow: "1 minute" } } }, async (request) => {
@@ -137,6 +138,17 @@ export function clientRoutes(ctx: AppContext) {
 
     app.post("/clients/:id/match-location", { schema: { params: idParams, body: locationRefSchema } }, async (request) => {
       return matchLocationManually(deps, await scopedClient(ctx, request, request.params.id), request.body);
+    });
+
+    app.get("/locations", async (request) => {
+      const connection = await agencyConnection(deps, request.auth.workspaceId);
+      if (!connection) return [];
+      const [locations, clients] = await Promise.all([
+        listAccessibleLocations(deps, connection),
+        db.client.findMany({ where: { workspaceId: request.auth.workspaceId, gbpLocationId: { not: null }, status: { not: "removed" } }, select: { id: true, gbpLocationId: true } }),
+      ]);
+      const imported = new Map(clients.map((client) => [client.gbpLocationId, client.id]));
+      return locations.map((location) => ({ ...location, clientId: imported.get(location.locationId) ?? null }));
     });
 
     app.get("/locations/unattached", async (request) => {

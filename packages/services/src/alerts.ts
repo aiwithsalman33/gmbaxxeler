@@ -3,11 +3,13 @@ import type { EmailTemplate } from "@localpilot/notify";
 import type { Deps } from "./context";
 import { queueEmail } from "./mail";
 
-export const EMAILED_INFO_TYPES = new Set(["seo.draft_ready"]);
+export const EMAILED_INFO_TYPES = new Set(["seo.draft_ready", "client.connected"]);
 
 function templateFor(type: string): { template: EmailTemplate; path: string } {
   if (type === "review.negative") return { template: "negative_review", path: "/" };
   if (type === "seo.draft_ready") return { template: "draft_awaiting_approval", path: "/" };
+  if (type === "client.connected") return { template: "client_connected", path: "/clients" };
+  if (type === "google.reconnect_required") return { template: "google_reconnect", path: "/settings/google" };
   return { template: "failed_job", path: "/admin/failed-jobs" };
 }
 

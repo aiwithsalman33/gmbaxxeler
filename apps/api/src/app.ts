@@ -18,6 +18,8 @@ import { clientRoutes } from "./modules/clients";
 import { dashboardRoutes } from "./modules/dashboard";
 import { devRoutes } from "./modules/dev";
 import { googleRoutes } from "./modules/google";
+import { googleCredentialRoutes } from "./modules/google-credentials";
+import { googleLoginRoutes } from "./modules/google-login";
 import { healthRoutes } from "./modules/health";
 import { inviteRoutes } from "./modules/invites";
 import { libraryRoutes } from "./modules/library";
@@ -65,7 +67,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     }
     if (error instanceof GbpError) {
       request.log.warn({ kind: error.kind }, "google call failed");
-      const status = error.kind === "rate_limited" ? 429 : 502;
+      const status = error.kind === "rate_limited" ? 429 : error.kind === "quota_zero" || error.kind === "not_configured" ? 503 : 502;
       return reply.status(status).send({ error: { code: `google_${error.kind}`, message: error.message } });
     }
     if (error.validation) {
@@ -97,8 +99,9 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   await app.register(
     async (api) => {
       await api.register(authRoutes(ctx), { prefix: "/auth" });
+      await api.register(googleLoginRoutes(ctx), { prefix: "/auth" });
       await api.register(googleRoutes(ctx), { prefix: "/google" });
-      await api.register(inviteRoutes(ctx));
+      if (ctx.env.ENABLE_CLIENT_OAUTH_LINKS) await api.register(inviteRoutes(ctx));
       await api.register(teamInviteRoutes(ctx));
       await api.register(async (secured) => {
         secured.addHook("preHandler", requireAuth(ctx));
@@ -113,6 +116,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
         await secured.register(reviewRoutes(ctx));
         await secured.register(settingsRoutes(ctx));
         await secured.register(mailRoutes(ctx));
+        await secured.register(googleCredentialRoutes(ctx));
         await secured.register(adminRoutes(ctx));
         await secured.register(devRoutes(ctx));
       });

@@ -26,6 +26,7 @@ export type MatchMethodName = "auto_name" | "auto_address" | "auto_phone";
 
 export type MatchResult =
   | { kind: "match"; clientId: string; score: number; method: MatchMethodName; reason: string }
+  | { kind: "suggest"; clientId: string; reason: string }
   | { kind: "ambiguous"; clientIds: string[]; reason: string }
   | { kind: "none"; reason: string };
 
@@ -74,64 +75,53 @@ export function similarity(a: string, b: string): number {
 }
 
 interface Scored {
-  clientId: string;
+  client: PendingClient;
+  nameMatches: boolean;
+  addressMatches: boolean;
   score: number;
-  method: MatchMethodName;
-  reason: string;
 }
 
-function resolve(scored: Scored[]): MatchResult {
-  if (scored.length === 0) return { kind: "none", reason: "No pending client matches" };
-  if (scored.length > 1) {
-    return {
-      kind: "ambiguous",
-      clientIds: scored.map((s) => s.clientId),
-      reason: `${scored.length} pending clients match equally well`,
-    };
-  }
-  const [only] = scored as [Scored];
-  return { kind: "match", ...only };
-}
-
-function scoreNameAndAddress(
-  client: PendingClient,
-  name: string | null | undefined,
-  address: string | null | undefined,
-): Scored | null {
+/** A matching name at a clearly different address is another branch, so it's dropped. */
+function score(client: PendingClient, name: string | null | undefined, address: string | null | undefined): Scored | null {
   const nameScore = name ? similarity(normalizeName(name), normalizeName(client.name)) : 0;
   const hasBothAddresses = Boolean(address && client.address);
   const addressScore = hasBothAddresses ? similarity(normalizeText(address!), normalizeText(client.address!)) : 0;
-
-  // Same chain name at a different address is another branch, not this client.
   if (hasBothAddresses && addressScore < ADDRESS_CONFLICT) return null;
-  if (nameScore >= NAME_THRESHOLD) {
-    return { clientId: client.id, score: nameScore, method: "auto_name", reason: `Business name matches "${client.name}"` };
-  }
-  if (addressScore >= ADDRESS_THRESHOLD) {
-    return { clientId: client.id, score: addressScore, method: "auto_address", reason: `Address matches "${client.name}"` };
-  }
-  return null;
+  const nameMatches = nameScore >= NAME_THRESHOLD;
+  const addressMatches = addressScore >= ADDRESS_THRESHOLD;
+  return nameMatches || addressMatches ? { client, nameMatches, addressMatches, score: Math.min(nameScore, addressScore || nameScore) } : null;
+}
+
+function confident(scored: Scored[]): MatchResult | null {
+  const both = scored.filter((item) => item.nameMatches && item.addressMatches);
+  if (both.length > 1) return { kind: "ambiguous", clientIds: both.map((item) => item.client.id), reason: `${both.length} pending clients match equally well` };
+  const [only] = both;
+  if (!only) return null;
+  return { kind: "match", clientId: only.client.id, score: only.score, method: "auto_name", reason: `Name and address match "${only.client.name}"` };
 }
 
 /**
  * Runs before accepting. Google's Invitation carries no phone number, so only
- * name and address can be compared at this stage.
+ * name and address can be compared. Auto-accept needs both. A wrong business
+ * must never connect by itself, so a partial match is only ever a suggestion.
  */
 export function matchInvitation(invitation: InvitationCandidate, clients: PendingClient[]): MatchResult {
-  const scored = clients.flatMap((c) => scoreNameAndAddress(c, invitation.locationName, invitation.address) ?? []);
-  return resolve(scored);
+  const scored = clients.flatMap((client) => score(client, invitation.locationName, invitation.address) ?? []);
+  const sure = confident(scored);
+  if (sure) return sure;
+  if (scored.length === 0) return { kind: "none", reason: "No pending client matches" };
+  if (scored.length > 1) return { kind: "ambiguous", clientIds: scored.map((item) => item.client.id), reason: `${scored.length} pending clients could match` };
+  const [only] = scored as [Scored];
+  const part = only.nameMatches ? "Name matches" : "Address matches";
+  return { kind: "suggest", clientId: only.client.id, reason: `${part} "${only.client.name}", but it needs both to connect by itself` };
 }
 
-/** Runs once a location is accessible. A phone match outranks name and address. */
+/** Runs once a location is accessible. An exact phone match counts, as does name and address. */
 export function matchLocation(location: LocationCandidate, clients: PendingClient[]): MatchResult {
   const phone = location.phone ? normalizePhone(location.phone) : "";
-  const byPhone = phone
-    ? clients.filter((c) => c.contactPhone && normalizePhone(c.contactPhone) === phone)
-    : [];
-  if (byPhone.length > 0) {
-    return resolve(
-      byPhone.map((c) => ({ clientId: c.id, score: 1, method: "auto_phone", reason: `Phone matches "${c.name}"` })),
-    );
-  }
-  return resolve(clients.flatMap((c) => scoreNameAndAddress(c, location.title, location.address) ?? []));
+  const byPhone = phone ? clients.filter((client) => client.contactPhone && normalizePhone(client.contactPhone) === phone) : [];
+  if (byPhone.length > 1) return { kind: "ambiguous", clientIds: byPhone.map((client) => client.id), reason: "Several clients share this phone number" };
+  const [phoneMatch] = byPhone;
+  if (phoneMatch) return { kind: "match", clientId: phoneMatch.id, score: 1, method: "auto_phone", reason: `Phone matches "${phoneMatch.name}"` };
+  return confident(clients.flatMap((client) => score(client, location.title, location.address) ?? [])) ?? { kind: "none", reason: "No pending client matches" };
 }

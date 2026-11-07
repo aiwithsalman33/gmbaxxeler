@@ -24,7 +24,8 @@ afterAll(async () => {
 const api = (method: "GET" | "POST" | "PATCH" | "DELETE", url: string, payload?: object, as = cookies) =>
   h.app.inject({ method, url: `/api/v1${url}`, cookies: as, ...(payload ? { payload } : {}) });
 
-const addClient = async (businessName: string, extra: object = { contactPhone: "+919876500000" }) =>
+const ADDRESS = "4 Harbor Road, Chennai";
+const addClient = async (businessName: string, extra: object = { contactPhone: "+919876500000", address: ADDRESS }) =>
   (await api("POST", "/clients", { businessName, ...extra })).json().client;
 
 const importFirst = async (count: number) => {
@@ -37,7 +38,7 @@ describe("agency connection", () => {
   it("stores the refresh token encrypted and never returns it", async () => {
     const row = await h.ctx.db.googleConnection.findFirstOrThrow();
     expect(row.refreshTokenEnc).not.toContain("mock-refresh-token");
-    expect(row.refreshTokenEnc.startsWith("v1.")).toBe(true);
+    expect(row.refreshTokenEnc?.startsWith("v1.")).toBe(true);
     const body = (await api("GET", "/google/connections")).body;
     expect(body).toContain("agency.demo@localpilot.dev");
     expect(body).not.toContain("refreshToken");
@@ -46,7 +47,7 @@ describe("agency connection", () => {
 
 describe("manager invitation flow", () => {
   it("adds a client, then accepts the matching invitation and connects it", async () => {
-    const created = await api("POST", "/clients", { businessName: "Harbor View Dental", contactPhone: "+919876500000" });
+    const created = await api("POST", "/clients", { businessName: "Harbor View Dental", contactPhone: "+919876500000", address: ADDRESS });
     expect(created.statusCode).toBe(201);
     const { client, guide } = created.json();
     expect(client.status).toBe("invited");
@@ -93,6 +94,32 @@ describe("manager invitation flow", () => {
     expect(result.statusCode).toBe(200);
     expect((await api("GET", `/clients/${client.id}`)).json().status).toBe("connected");
     expect((await api("GET", "/invitations")).json()).toHaveLength(0);
+  });
+
+  it("suggests a client on a name-only match, and a person accepts it", async () => {
+    const client = await addClient("Harbor View Dental", { contactPhone: "+919876500000" });
+    await api("POST", `/dev/mock/clients/${client.id}/invite`);
+    expect((await api("POST", "/clients/check-invitations")).json()).toMatchObject({ accepted: 0, needsReview: 1 });
+    expect((await api("GET", `/clients/${client.id}`)).json().status).toBe("invited");
+
+    const [invitation] = (await api("GET", "/invitations")).json();
+    expect(invitation.suggestedClientId).toBe(client.id);
+    await api("POST", `/invitations/${invitation.id}/match`, { clientId: client.id });
+    expect((await api("GET", `/clients/${client.id}`)).json().status).toBe("connected");
+  });
+
+  it("emails the admin when a client connects", async () => {
+    const client = await addClient("Harbor View Dental");
+    await api("POST", `/dev/mock/clients/${client.id}/invite`);
+    h.mail.length = 0;
+    await api("POST", "/clients/check-invitations");
+    expect(h.mail.some((mail) => mail.subject.includes("is connected"))).toBe(true);
+  });
+
+  it("simulates one clean and one unsure invitation", async () => {
+    await addClient("Harbor View Dental");
+    await api("POST", "/dev/mock/sample-invitations");
+    expect((await api("POST", "/clients/check-invitations")).json()).toMatchObject({ accepted: 1, needsReview: 1 });
   });
 
   it("sends ambiguous invitations to review", async () => {
@@ -150,7 +177,7 @@ describe("access loss", () => {
     await gbp.simulateTokenRevoked(client.workspaceId);
     await api("POST", "/clients/check-invitations");
     expect((await api("GET", `/clients/${client.id}`)).json().status).toBe("reconnect_required");
-    expect((await api("GET", "/google/connections")).json()[0].status).toBe("revoked");
+    expect((await api("GET", "/google/connections")).json()[0].status).toBe("error");
 
     await connectGoogle(h, cookies);
     expect((await api("GET", `/clients/${client.id}`)).json().status).toBe("connected");
@@ -158,6 +185,16 @@ describe("access loss", () => {
 });
 
 describe("import and switching data", () => {
+  it("imports all 10 sample locations across two accounts", async () => {
+    const locations = (await api("GET", "/locations")).json();
+    expect(locations).toHaveLength(10);
+    expect(new Set(locations.map((l: { accountId: string }) => l.accountId)).size).toBe(2);
+    const imported = (await api("POST", "/clients/import", { all: true })).json();
+    expect(imported).toHaveLength(10);
+    expect((await api("GET", "/clients")).json()).toHaveLength(10);
+    expect((await api("GET", "/locations")).json().every((l: { clientId: string | null }) => l.clientId)).toBe(true);
+  });
+
   it("imports 3 clients with separate metrics", async () => {
     const imported = await importFirst(3);
     expect(imported).toHaveLength(3);
@@ -165,7 +202,7 @@ describe("import and switching data", () => {
       imported.map(async (c: { id: string }) => (await api("GET", `/clients/${c.id}/dashboard?range=7`)).json().metrics.current.views),
     );
     expect(new Set(views).size).toBe(3);
-    expect((await api("GET", "/locations/unattached")).json()).toHaveLength(2);
+    expect((await api("GET", "/locations/unattached")).json()).toHaveLength(7);
   });
 
   it("gives each client a strength score and checklist", async () => {
@@ -179,7 +216,7 @@ describe("import and switching data", () => {
     const [client] = await importFirst(1);
     await api("DELETE", `/clients/${client.id}`);
     expect((await api("GET", `/clients/${client.id}`)).statusCode).toBe(404);
-    const again = await importFirst(5);
+    const again = await importFirst(10);
     expect(again.find((c: { id: string }) => c.id === client.id)?.status).toBe("connected");
   });
 });
@@ -226,14 +263,12 @@ describe("mock data", () => {
     await empty.ctx.db.$disconnect();
   });
 
-  it("is refused in production", () => {
+  it("is allowed in production, for use until Google approves API access", () => {
     const production = {
       APP_ENV: "production",
       DATABASE_URL: "postgresql://x",
-      JWT_SECRET: "a-long-production-secret-of-32-chars-plus",
+      JWT_SECRET: "a".repeat(64),
       ENCRYPTION_KEY: "ab".repeat(32),
-      GOOGLE_CLIENT_ID: "id",
-      GOOGLE_CLIENT_SECRET: "secret",
       APP_URL: "https://x.example",
       API_URL: "https://x.example/api",
       PUBLIC_MEDIA_URL: "https://x.example/media",
@@ -245,10 +280,9 @@ describe("mock data", () => {
       SMTP_USER: "u",
       SMTP_PASS: "p",
       MAIL_FROM: "x@example.com",
-      AI_ADAPTER: "openai",
     };
-    expect(() => loadEnv({ ...production, GBP_ADAPTER: "mock" })).toThrow(/GBP_ADAPTER cannot be mock/);
-    expect(() => loadEnv({ ...production, GBP_ADAPTER: "real" })).not.toThrow();
+    expect(() => loadEnv({ ...production, GBP_ADAPTER: "mock", AI_ADAPTER: "mock" })).not.toThrow();
+    expect(() => loadEnv({ ...production, GBP_ADAPTER: "real", AI_ADAPTER: "openai" })).not.toThrow();
   });
 });
 
@@ -259,6 +293,15 @@ describe("mock routes", () => {
     expect(response.statusCode).toBe(404);
     await real.app.close();
     await real.ctx.db.$disconnect();
+  });
+});
+
+describe("client sign-in links", () => {
+  it("are off unless the env flag is set", async () => {
+    const off = await createHarness({ ENABLE_CLIENT_OAUTH_LINKS: "false" });
+    expect((await off.app.inject({ method: "GET", url: "/api/v1/public/invites/abc" })).statusCode).toBe(404);
+    await off.app.close();
+    await off.ctx.db.$disconnect();
   });
 });
 
