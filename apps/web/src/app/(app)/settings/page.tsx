@@ -1,48 +1,97 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
+import { Bell, Building2, Globe, Lock, Sparkles, Users } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef } from "react";
 import { AiSettings } from "./ai-settings";
+import { GeneralSettings, GoogleSummary } from "./general-settings";
 import { NotificationSettings } from "./notification-settings";
 import { SecuritySettings } from "./security-settings";
 import { TeamSettings } from "./team-settings";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
-import { Card, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api";
-import type { Me } from "@/lib/types";
+import { LoadingBlock, Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const TABS = [
+  { value: "general", label: "General", icon: Building2 },
+  { value: "google", label: "Google", icon: Globe },
+  { value: "ai", label: "AI", icon: Sparkles },
+  { value: "notifications", label: "Notifications", icon: Bell },
+  { value: "team", label: "Team", icon: Users },
+  { value: "security", label: "Security", icon: Lock },
+] as const;
+type Tab = (typeof TABS)[number]["value"];
+
+/** The selected tab lives in ?tab=, so links like /settings?tab=ai open the right one. */
+function SettingsTabs() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const requested = params.get("tab");
+  const tab: Tab = TABS.some((t) => t.value === requested) ? (requested as Tab) : "general";
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // On narrow screens the tab bar scrolls sideways; keep the selected tab visible.
+  useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>('[data-state="active"]');
+    const list = listRef.current;
+    if (active && list) list.scrollTo({ left: active.offsetLeft - (list.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
+  }, [tab]);
+
+  function select(value: string) {
+    const next = new URLSearchParams(params.toString());
+    if (value === "general") next.delete("tab");
+    else next.set("tab", value);
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={select}>
+      <TabsList ref={listRef} aria-label="Settings sections">
+        {TABS.map(({ value, label, icon: Icon }) => (
+          <TabsTrigger key={value} value={value}>
+            <Icon className="size-4" aria-hidden />
+            {label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      <TabsContent value="general" className="mt-6">
+        <GeneralSettings />
+      </TabsContent>
+      <TabsContent value="google" className="mt-6">
+        <GoogleSummary />
+      </TabsContent>
+      <TabsContent value="ai" className="mt-6">
+        <AiSettings />
+      </TabsContent>
+      <TabsContent value="notifications" className="mt-6">
+        <NotificationSettings />
+      </TabsContent>
+      <TabsContent value="team" className="mt-6">
+        <TeamSettings />
+      </TabsContent>
+      <TabsContent value="security" className="mt-6">
+        <SecuritySettings />
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 export default function SettingsPage() {
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
   return (
     <>
-      <PageHeader title="Account Settings" subtitle={me.data?.workspace.name} />
-      <div className="space-y-6">
-        <Card className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle>Google</CardTitle>
-            <p className="mt-1 text-sm text-muted">Credentials, the agency account and setup status.</p>
-          </div>
-          <Button asChild variant="secondary">
-            <Link href="/settings/google">Open Google settings</Link>
-          </Button>
-        </Card>
-
-        <AiSettings />
-        <NotificationSettings />
-        <TeamSettings />
-        <SecuritySettings />
-
-        <Card className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle>Failed jobs</CardTitle>
-            <p className="mt-1 text-sm text-muted">Review and retry uploads that didn&apos;t go through.</p>
-          </div>
-          <Button asChild variant="secondary">
-            <Link href="/admin/failed-jobs">View failed jobs</Link>
-          </Button>
-        </Card>
-      </div>
+      <PageHeader title="Settings" subtitle="Your workspace, connections, AI, alerts and team." />
+      <Suspense
+        fallback={
+          <LoadingBlock label="Loading settings" className="space-y-6">
+            <Skeleton className="h-11" />
+            <Skeleton className="h-56 rounded-card" />
+          </LoadingBlock>
+        }
+      >
+        <SettingsTabs />
+      </Suspense>
     </>
   );
 }

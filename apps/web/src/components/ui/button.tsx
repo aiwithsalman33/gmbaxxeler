@@ -1,29 +1,46 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-const button = cva(
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50",
+export const buttonStyles = cva(
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] focus-visible:shadow-focus focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-white hover:bg-primary-dark",
-        secondary: "border border-line bg-white text-ink hover:bg-lavender",
-        ghost: "text-ink hover:bg-primary-soft",
-        danger: "border border-red-200 bg-white text-bad hover:bg-red-50",
+        primary: "bg-primary text-white shadow-sm shadow-primary/20 hover:bg-primary-dark",
+        secondary: "border border-line-strong bg-white text-ink hover:border-primary-300 hover:bg-primary-50",
+        soft: "bg-primary-100 text-primary-800 hover:bg-primary-200",
+        ghost: "text-ink-soft hover:bg-primary-50 hover:text-ink",
+        danger: "border border-red-200 bg-white text-bad hover:bg-bad-soft",
+        "danger-solid": "bg-bad text-white hover:bg-red-800",
+        link: "h-auto px-0 text-primary underline-offset-4 hover:underline",
       },
-      size: { md: "h-10 px-4", sm: "h-8 px-3 text-xs", icon: "size-10" },
+      size: { lg: "h-11 px-5 text-sm", md: "h-10 px-4 text-sm", sm: "h-8 px-3 text-xs", icon: "size-10", "icon-sm": "size-8" },
     },
     defaultVariants: { variant: "primary", size: "md" },
   },
 );
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof button> {
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonStyles> {
   asChild?: boolean;
+  /** Shows a spinner and disables the button. */
+  loading?: boolean;
 }
 
-export function Button({ className, variant, size, asChild, ...props }: ButtonProps) {
-  const Component = asChild ? Slot : "button";
-  return <Component className={cn(button({ variant, size }), className)} {...props} />;
+export function Button({ className, variant, size, asChild, loading, disabled, children, ...props }: ButtonProps) {
+  if (asChild) {
+    return (
+      <Slot className={cn(buttonStyles({ variant, size }), className)} {...props}>
+        {children}
+      </Slot>
+    );
+  }
+  return (
+    <button className={cn(buttonStyles({ variant, size }), className)} disabled={disabled || loading} aria-busy={loading || undefined} {...props}>
+      {loading && <Loader2 className="animate-spin" aria-hidden />}
+      {children}
+    </button>
+  );
 }

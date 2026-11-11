@@ -1,27 +1,131 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
 
+/*
+ * LocalPilot design tokens. Light purple + white: lavender page, white cards, violet primary.
+ * Every screen uses these names (bg-primary, text-muted, border-line, shadow-card, rounded-card…),
+ * never raw hex values, so the theme stays consistent.
+ */
 @theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* Violet scale, anchored on #7C3AED (600). */
+  --color-primary-50: #f5f3ff;
+  --color-primary-100: #ede9fe;
+  --color-primary-200: #ddd6fe;
+  --color-primary-300: #c4b5fd;
+  --color-primary-400: #a78bfa;
+  --color-primary-500: #8b5cf6;
+  --color-primary-600: #7c3aed;
+  --color-primary-700: #6d28d9;
+  --color-primary-800: #5b21b6;
+  --color-primary-900: #4c1d95;
+
+  /* Semantic aliases used across the app. */
   --color-primary: #7c3aed;
   --color-primary-dark: #6d28d9;
   --color-primary-soft: #ede9fe;
   --color-lavender: #f5f3ff;
+  --color-surface: #ffffff;
   --color-ink: #1e1b2e;
+  --color-ink-soft: #3f3a55;
   --color-muted: #6b6880;
-  --color-line: #e9e5f5;
+  --color-subtle: #9a96ad;
+  --color-line: #ebe7f7;
+  --color-line-strong: #d9d3ee;
+
   --color-good: #15803d;
+  --color-good-soft: #ecfdf3;
   --color-warn: #b45309;
+  --color-warn-soft: #fffbeb;
   --color-bad: #b91c1c;
-  --shadow-card: 0 1px 2px rgb(76 29 149 / 0.05), 0 6px 20px rgb(76 29 149 / 0.06);
+  --color-bad-soft: #fef2f2;
+  --color-info: #1d4ed8;
+  --color-info-soft: #eff6ff;
+
+  /* Type scale: 12 / 13 / 14 / 16 / 18 / 22 / 28. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+
+  --shadow-card: 0 1px 2px rgb(76 29 149 / 0.04), 0 4px 16px rgb(76 29 149 / 0.06);
+  --shadow-raised: 0 2px 4px rgb(76 29 149 / 0.06), 0 12px 32px rgb(76 29 149 / 0.12);
+  --shadow-focus: 0 0 0 3px rgb(124 58 237 / 0.22);
+
   --radius-card: 1rem;
+  --radius-control: 0.75rem;
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-slide-in-right: slide-in-right 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-slide-in-left: slide-in-left 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-pop-in: pop-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  @keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes slide-in-left {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+}
+
+html {
+  /* Reserve the scrollbar so pages don't shift sideways when content grows. */
+  scrollbar-gutter: stable;
 }
 
 body {
   background: var(--color-lavender);
   color: var(--color-ink);
-  font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-primary-100) 0%, var(--color-primary-50) 50%, var(--color-primary-100) 100%);
+    background-size: 800px 100%;
+    animation: var(--animate-shimmer);
+  }
 }

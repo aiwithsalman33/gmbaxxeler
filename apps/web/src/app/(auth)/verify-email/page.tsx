@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { BadgeCheck, LinkIcon, MailOpen } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
@@ -22,8 +23,8 @@ function Verify() {
 
   if (!token || verify.isError) {
     return (
-      <AuthCard title="That link didn't work" subtitle="It may have expired or already been used. Log in to request a new one.">
-        <Button asChild className="w-full" variant="secondary">
+      <AuthCard icon={LinkIcon} tone="bad" title="That link didn't work" subtitle="It may have expired or already been used. Log in and we'll offer to send you a new one.">
+        <Button asChild size="lg" className="w-full" variant="secondary">
           <Link href="/login">Back to login</Link>
         </Button>
       </AuthCard>
@@ -31,16 +32,18 @@ function Verify() {
   }
   if (verify.isSuccess) {
     return (
-      <AuthCard title="Email verified" subtitle="Your account is ready.">
-        <Button asChild className="w-full">
+      <AuthCard icon={BadgeCheck} tone="good" title="Email verified" subtitle="Your account is ready. Log in to get started.">
+        <Button asChild size="lg" className="w-full">
           <Link href="/login">Log in</Link>
         </Button>
       </AuthCard>
     );
   }
   return (
-    <AuthCard title="Verifying your email">
-      <Skeleton className="h-10" />
+    <AuthCard icon={MailOpen} title="Verifying your email" subtitle="This only takes a moment.">
+      <div role="status" aria-label="Verifying your email">
+        <Skeleton className="h-11" />
+      </div>
     </AuthCard>
   );
 }

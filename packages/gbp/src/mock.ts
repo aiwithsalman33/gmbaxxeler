@@ -76,6 +76,30 @@ function seededLocation(n: number, title: string, city: string, overrides: Parti
   };
 }
 
+/** The built-in demo businesses are numbered 1 to 10; anything created later starts above 100. */
+export const SAMPLE_LOCATION_COUNT = 10;
+export const sampleLocationIds = (): string[] => Array.from({ length: SAMPLE_LOCATION_COUNT }, (_, i) => `mock-loc-${i + 1}`);
+export const isSampleLocationId = (id: string | null | undefined): boolean => !!id && sampleLocationIds().includes(id);
+
+/** Sample businesses are never allowed in production, whatever MOCK_SAMPLE_DATA says. */
+export const sampleDataAllowed = (flag: boolean, appEnv: string | undefined): boolean => flag && appEnv !== "production";
+
+/** Strips the demo businesses (and their fake reviews, uploads and posts) from saved mock state. */
+export async function removeSampleFromMockState(db: Db, workspaceId: string): Promise<number> {
+  let removed = 0;
+  await db.$transaction(async (tx) => {
+    const [row] = await tx.$queryRaw<{ state: Partial<MockState> }[]>`SELECT state FROM mock_gbp_state WHERE workspace_id = ${workspaceId}::uuid FOR UPDATE`;
+    if (!row?.state?.seeded) return;
+    const state = row.state as MockState;
+    const before = state.locations.length;
+    state.locations = state.locations.filter((l) => !isSampleLocationId(l.locationId));
+    removed = before - state.locations.length;
+    if (state.reviews) for (const id of Object.keys(state.reviews)) if (isSampleLocationId(id)) delete state.reviews[id];
+    if (removed) await tx.mockGbpState.update({ where: { workspaceId }, data: { state: state as unknown as object } });
+  });
+  return removed;
+}
+
 function initialState(sample: boolean): MockState {
   return {
     seeded: true,

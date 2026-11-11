@@ -15,6 +15,8 @@ export interface Client {
   aiRenameEnabled: boolean;
   timezone: string;
   stats?: { strengthScore: number; rating: number | null } | null;
+  /** One of the built-in sample businesses; never real Google data. */
+  demo?: boolean;
 }
 
 export interface Guide {

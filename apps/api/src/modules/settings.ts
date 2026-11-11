@@ -1,7 +1,7 @@
 import { notificationSettingsSchema, openaiSettingsSchema } from "@localpilot/contracts";
 import { DEFAULT_VISION_MODEL, listModels, OpenAiError } from "@localpilot/ai";
 import { decryptSecret, encryptSecret } from "@localpilot/crypto";
-import { DEFAULT_PRICES, deliverAlert } from "@localpilot/services";
+import { DEFAULT_PRICES, deliverAlert, findDemoClients, removeDemoData } from "@localpilot/services";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { ApiError, type AppContext } from "../context";
@@ -17,6 +17,17 @@ export function settingsRoutes(ctx: AppContext) {
 
   return async (base: FastifyInstance) => {
     const app = base.withTypeProvider<ZodTypeProvider>();
+
+    app.get("/settings/demo-data", async (request) => findDemoClients(deps, request.auth.workspaceId));
+
+    app.delete("/settings/demo-data", async (request) => {
+      requireOwner(request);
+      const result = await removeDemoData(deps, request.auth.workspaceId);
+      await db.auditLog.create({
+        data: { workspaceId: request.auth.workspaceId, actorId: request.auth.userId, action: "demo_data.removed", entity: "workspace", meta: { ...result } },
+      });
+      return result;
+    });
 
     app.get("/settings/openai", async (request) => {
       const settings = await db.openaiSettings.findUnique({ where: { workspaceId: request.auth.workspaceId } });

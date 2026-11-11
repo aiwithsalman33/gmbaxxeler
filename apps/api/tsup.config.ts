@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/server.ts", "src/check-env.ts"],
+  entry: ["src/server.ts", "src/check-env.ts", "src/remove-demo-data.ts"],
   format: ["esm"],
   target: "node22",
   outDir: "dist",

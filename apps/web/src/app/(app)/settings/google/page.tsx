@@ -1,19 +1,23 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, Copy } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, Check, CheckCircle2, Circle, CircleDashed, Copy, KeyRound, Link2, ListChecks, RefreshCw, Unplug, Zap } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { LocationChecklist } from "@/components/location-checklist";
 import { PageHeader } from "@/components/page-header";
-import { ErrorState } from "@/components/states";
+import { ErrorState, Notice } from "@/components/states";
+import { Badge, type Tone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input, Label } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardHeader } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { Field, Input } from "@/components/ui/input";
+import { LoadingBlock, Skeleton } from "@/components/ui/skeleton";
+import { toast, toastError } from "@/components/ui/toast";
 import { api, apiUrl } from "@/lib/api";
 import type { Connection, GoogleCredentials, GoogleStatus } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 const RESULTS: Record<string, { text: string; good?: boolean }> = {
   connected: { text: "Google account connected.", good: true },
@@ -35,58 +39,79 @@ function ConnectResult() {
   const result = RESULTS[useSearchParams().get("google") ?? ""];
   if (!result) return null;
   return (
-    <p role="status" className={result.good ? "mb-4 rounded-xl bg-green-50 px-4 py-2 text-sm text-good" : "mb-4 rounded-xl bg-amber-50 px-4 py-2 text-sm text-warn"}>
+    <Notice tone={result.good ? "good" : "warn"} icon={result.good ? CheckCircle2 : AlertTriangle} className="mb-6">
       {result.text}
-    </p>
+    </Notice>
   );
 }
 
 function CopyLine({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-lavender px-3 py-2">
-      <code className="min-w-0 flex-1 text-xs break-all">{value}</code>
+    <div className="flex items-center gap-2 rounded-xl border border-line bg-lavender py-1.5 pr-1.5 pl-3">
+      <code className="min-w-0 flex-1 font-mono text-xs break-all text-ink-soft">{value}</code>
       <Button
-        size="sm"
+        size="icon-sm"
         variant="ghost"
-        aria-label={`Copy ${value}`}
+        aria-label={copied ? "Copied" : `Copy ${value}`}
         onClick={async () => {
           await navigator.clipboard.writeText(value);
           setCopied(true);
+          toast.success("Redirect URI copied");
         }}
       >
-        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {copied ? <Check className="text-good" aria-hidden /> : <Copy aria-hidden />}
       </Button>
     </div>
   );
 }
 
 function SetupStatus({ status }: { status: GoogleStatus }) {
-  const access = { approved: "API access: approved", not_approved: "API access: not approved", unknown: "API access: not checked yet" }[status.apiAccess];
+  const access = { approved: "Approved", not_approved: "Not approved yet", unknown: "Not checked yet" }[status.apiAccess];
   const items = [
-    { done: status.credentialsSet, label: status.credentialsSet ? "Credentials set" : "Credentials not set" },
-    { done: status.agencyConnected, label: status.agencyConnected ? "Agency account connected" : "Agency account not connected" },
-    { done: status.apiAccess === "approved", label: access },
-  ];
+    { state: status.credentialsSet ? "done" : "todo", label: "OAuth credentials", detail: status.credentialsSet ? "Credentials set" : "Credentials not set" },
+    { state: status.agencyConnected ? "done" : "todo", label: "Agency account", detail: status.agencyConnected ? "Agency account connected" : "Agency account not connected" },
+    { state: status.apiAccess === "approved" ? "done" : "todo", label: "Business Profile API access", detail: access },
+    { state: "manual", label: "Consent screen mode", detail: "Check this in Google Cloud" },
+  ] as const;
+  const done = items.filter((item) => item.state === "done").length;
+  const total = items.filter((item) => item.state !== "manual").length;
+
   return (
     <Card>
-      <CardTitle>Google setup status</CardTitle>
-      <ul className="mt-3 space-y-2 text-sm">
-        {items.map((item) => (
-          <li key={item.label} className="flex items-center gap-2">
-            {item.done ? <Check className="size-4 text-good" /> : <Circle className="size-4 text-muted" />}
-            {item.label}
+      <CardHeader icon={ListChecks} title="Setup checklist" description={`${done} of ${total} done`} className="mb-4" />
+      <ol className="space-y-1">
+        {items.map((item, index) => (
+          <li key={item.label} className="relative flex gap-3 pb-3 last:pb-0">
+            {index < items.length - 1 && <span aria-hidden className={cn("absolute top-7 bottom-0 left-[11px] w-0.5 rounded-full", item.state === "done" ? "bg-primary-300" : "bg-line")} />}
+            {item.state === "done" ? (
+              <CheckCircle2 className="relative size-6 shrink-0 fill-good-soft text-good" aria-label="Done" />
+            ) : item.state === "manual" ? (
+              <CircleDashed className="relative size-6 shrink-0 text-subtle" aria-label="Check by hand" />
+            ) : (
+              <Circle className="relative size-6 shrink-0 text-line-strong" aria-label="Not done" />
+            )}
+            <div className="min-w-0 pt-0.5">
+              <p className="text-sm font-medium">{item.label}</p>
+              <p className="text-xs text-muted">{item.detail}</p>
+            </div>
           </li>
         ))}
-        <li className="flex items-center gap-2 text-muted">
-          <Circle className="size-4" />
-          Consent screen mode: check this in Google Cloud
-        </li>
-      </ul>
-      {status.adapter === "mock" && <p className="mt-3 rounded-xl bg-amber-50 px-4 py-2 text-sm text-warn">Mock mode: locations, reviews and metrics here are simulated. Nothing reaches Google.</p>}
+      </ol>
+      {status.adapter === "mock" && (
+        <Notice tone="warn" className="mt-4">
+          Mock mode: locations, reviews and metrics here are simulated. Nothing reaches Google.
+        </Notice>
+      )}
     </Card>
   );
 }
+
+const CREDENTIAL_BADGE: Record<GoogleCredentials["status"], { label: string; tone: Tone }> = {
+  valid: { label: "Credentials work", tone: "good" },
+  invalid: { label: "Google rejected these", tone: "bad" },
+  unknown: { label: "Not tested yet", tone: "neutral" },
+};
 
 function CredentialsCard({ owner }: { owner: boolean }) {
   const queryClient = useQueryClient();
@@ -104,154 +129,226 @@ function CredentialsCard({ owner }: { owner: boolean }) {
     mutationFn: () => api("/settings/google/credentials", { method: "PUT", body: { clientId, ...(clientSecret ? { clientSecret } : {}) } }),
     onSuccess: () => {
       setClientSecret("");
+      toast.success("Credentials saved");
       refresh();
     },
+    onError: (error) => toastError(error),
   });
-  const test = useMutation({ mutationFn: () => api<{ status: string }>("/settings/google/credentials/test", { method: "POST" }), onSuccess: refresh });
-  const badge = { valid: "Credentials work", invalid: "Google rejected these", unknown: "Not tested yet" }[data?.status ?? "unknown"];
-  const error = save.error ?? test.error;
+  const test = useMutation({
+    mutationFn: () => api<{ status: string }>("/settings/google/credentials/test", { method: "POST" }),
+    onSuccess: ({ status }) => {
+      if (status === "valid") toast.success("Google accepted these credentials");
+      else if (status === "invalid") toast.error("Google rejected these credentials");
+      else toast("Google couldn't confirm these credentials yet");
+      refresh();
+    },
+    onError: (error) => toastError(error),
+  });
+  const badge = CREDENTIAL_BADGE[data?.status ?? "unknown"];
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    save.mutate();
+  }
 
   return (
     <Card>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle>Google OAuth credentials</CardTitle>
-        {data && <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary-dark">{badge}</span>}
-      </div>
-      <p className="mt-1 mb-4 text-sm text-muted">One Google Cloud project serves the whole app. Clients never need their own.</p>
-      {query.isPending && <Skeleton className="h-32" />}
-      {query.isError && <ErrorState error={query.error} onRetry={() => query.refetch()} />}
-      {data && (
-        <>
+      <CardHeader
+        icon={KeyRound}
+        title="Google OAuth credentials"
+        description="One Google Cloud project serves the whole app. Clients never need their own."
+        actions={
+          data && (
+            <Badge tone={badge.tone} dot>
+              {badge.label}
+            </Badge>
+          )
+        }
+      />
+      {query.isPending && (
+        <LoadingBlock label="Loading credentials" className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="clientId">Client ID</Label>
-              <Input id="clientId" disabled={!owner} value={clientId} onChange={(event) => setClientId(event.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="clientSecret">Client Secret</Label>
-              <Input id="clientSecret" type="password" autoComplete="off" disabled={!owner} placeholder={data.maskedSecret ?? ""} value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} />
+            <Skeleton className="h-[66px]" />
+            <Skeleton className="h-[66px]" />
+          </div>
+          <Skeleton className="h-24" />
+        </LoadingBlock>
+      )}
+      {query.isError && <ErrorState bare error={query.error} onRetry={() => query.refetch()} />}
+      {data && (
+        <form onSubmit={submit}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Client ID">{(props) => <Input {...props} disabled={!owner} value={clientId} onChange={(event) => setClientId(event.target.value)} />}</Field>
+            <Field label="Client Secret" hint={data.maskedSecret ? "Leave blank to keep the saved secret." : undefined}>
+              {(props) => (
+                <Input {...props} type="password" autoComplete="off" disabled={!owner} placeholder={data.maskedSecret ?? ""} value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} />
+              )}
+            </Field>
+          </div>
+          {data.source === "env" && <p className="mt-3 text-xs text-muted">Using values from the environment. Saving here overrides them.</p>}
+          {!owner && <p className="mt-3 text-xs text-muted">Only the workspace owner can change these.</p>}
+
+          <div className="mt-5">
+            <p className="mb-2 text-sm font-medium">Redirect URIs for your OAuth client</p>
+            <div className="space-y-2">
+              {data.redirectUris.map((uri) => (
+                <CopyLine key={uri} value={uri} />
+              ))}
             </div>
           </div>
-          {data.source === "env" && <p className="mt-2 text-xs text-muted">Using values from the environment. Saving here overrides them.</p>}
-          <p className="mt-4 mb-1 text-sm font-medium">Redirect URIs for your OAuth client</p>
-          <div className="space-y-2">
-            {data.redirectUris.map((uri) => (
-              <CopyLine key={uri} value={uri} />
-            ))}
-          </div>
+
           {owner && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Button disabled={save.isPending || !clientId} onClick={() => save.mutate()}>
+            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5">
+              <Button type="submit" disabled={!clientId} loading={save.isPending}>
                 Save
               </Button>
-              <Button variant="secondary" disabled={test.isPending || data.source === "none"} onClick={() => test.mutate()}>
+              <Button type="button" variant="secondary" disabled={data.source === "none"} loading={test.isPending} onClick={() => test.mutate()}>
+                {!test.isPending && <Zap aria-hidden />}
                 Test credentials
               </Button>
-              {save.isSuccess && <p className="text-sm text-good">Saved.</p>}
             </div>
           )}
-          {error && (
-            <p role="alert" className="mt-2 text-sm text-bad">
-              {error.message}
-            </p>
-          )}
-        </>
+        </form>
       )}
     </Card>
   );
 }
 
+function Detail({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={cn("min-w-0 rounded-xl bg-lavender/70 px-4 py-3", wide && "sm:col-span-2")}>
+      <dt className="text-2xs font-semibold tracking-wide text-subtle uppercase">{label}</dt>
+      <dd className="mt-0.5 text-sm">{children}</dd>
+    </div>
+  );
+}
+
 function AgencyCard({ owner, expected }: { owner: boolean; expected: string | null }) {
   const queryClient = useQueryClient();
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
   const connections = useQuery({ queryKey: ["connections"], queryFn: () => api<Connection[]>("/google/connections") });
   const agency = connections.data?.find((connection) => connection.source === "agency" && connection.status !== "disconnected");
   const refresh = () => queryClient.invalidateQueries();
-  const disconnect = useMutation({ mutationFn: (id: string) => api(`/google/connections/${id}`, { method: "DELETE" }), onSuccess: refresh });
-  const confirm = useMutation({ mutationFn: (id: string) => api(`/google/connections/${id}/confirm-mismatch`, { method: "POST" }), onSuccess: refresh });
+  const disconnect = useMutation({
+    mutationFn: (id: string) => api(`/google/connections/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setConfirmingDisconnect(false);
+      toast.success("Agency account disconnected");
+      refresh();
+    },
+    onError: (error) => toastError(error),
+  });
+  const confirm = useMutation({
+    mutationFn: (id: string) => api(`/google/connections/${id}/confirm-mismatch`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Using this account");
+      refresh();
+    },
+    onError: (error) => toastError(error),
+  });
   const reconnect = useMutation({
     mutationFn: (id: string) => api<{ url: string }>(`/google/connections/${id}/reconnect`, { method: "POST" }),
     onSuccess: ({ url }) => window.location.assign(url),
+    onError: (error) => toastError(error),
   });
-  const error = disconnect.error ?? confirm.error ?? reconnect.error;
   const active = agency?.status === "active" && !agency.needsConfirmation;
+  const state = agency ? (agency.needsConfirmation ? { label: "Needs confirming", tone: "warn" as const } : active ? { label: "Connected", tone: "good" as const } : { label: "Error", tone: "bad" as const }) : null;
 
   return (
     <>
       <Card>
-        <CardTitle>Agency Google account</CardTitle>
-        <p className="mt-1 mb-4 text-sm text-muted">This account holds Manager access to client profiles. It's separate from your login.</p>
-        {connections.isPending && <Skeleton className="h-16" />}
-        {connections.isError && <ErrorState error={connections.error} onRetry={() => connections.refetch()} />}
+        <CardHeader
+          icon={Link2}
+          title="Agency Google account"
+          description="This account holds Manager access to client profiles. It's separate from your login."
+          actions={
+            state && (
+              <Badge tone={state.tone} dot>
+                {state.label}
+              </Badge>
+            )
+          }
+        />
+        {connections.isPending && (
+          <LoadingBlock label="Loading agency account" className="grid gap-3 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((n) => (
+              <Skeleton key={n} className="h-[62px]" />
+            ))}
+          </LoadingBlock>
+        )}
+        {connections.isError && <ErrorState bare error={connections.error} onRetry={() => connections.refetch()} />}
         {connections.isSuccess && !agency && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted">Not connected{expected ? `. Expected account: ${expected}` : ""}</p>
+          <div className="flex flex-col items-start gap-4 rounded-xl border border-dashed border-primary-300 bg-primary-50/60 p-5 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Not connected</p>
+              <p className="mt-0.5 text-sm text-muted">{expected ? `Sign in with ${expected} and allow Business Profile access.` : "Sign in with the Google account your clients add as Manager."}</p>
+            </div>
             <Button asChild>
-              <a href={apiUrl("/google/oauth/start")}>Connect</a>
+              <a href={apiUrl("/google/oauth/start")}>
+                <Link2 aria-hidden />
+                Connect Google
+              </a>
             </Button>
           </div>
         )}
         {agency && (
           <>
-            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-xs text-muted">Status</dt>
-                <dd className={active ? "font-medium text-good" : "font-medium text-bad"}>{agency.needsConfirmation ? "Needs confirming" : active ? "Connected" : "Error"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted">Account</dt>
-                <dd className="font-medium break-all">{agency.googleAccountEmail}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted">Last sync</dt>
-                <dd>{formatDate(agency.lastSyncedAt)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted">Found</dt>
-                <dd>
-                  {agency.accountsCount} accounts, {agency.locationsCount} locations
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-xs text-muted">Scopes granted</dt>
-                <dd className="text-xs break-all">{agency.scopes.join(" ")}</dd>
-              </div>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <Detail label="Account">
+                <span className="font-medium break-all">{agency.googleAccountEmail}</span>
+              </Detail>
+              <Detail label="Last sync">{formatDate(agency.lastSyncedAt)}</Detail>
+              <Detail label="Found">
+                {agency.accountsCount} {agency.accountsCount === 1 ? "account" : "accounts"}, {agency.locationsCount} {agency.locationsCount === 1 ? "location" : "locations"}
+              </Detail>
+              <Detail label="Status">{state?.label}</Detail>
+              <Detail label="Scopes granted" wide>
+                <span className="font-mono text-xs break-all text-ink-soft">{agency.scopes.join(" ")}</span>
+              </Detail>
             </dl>
-            {agency.lastError && <p className="mt-3 text-sm text-bad">{agency.lastError}</p>}
-            {agency.needsConfirmation && (
-              <p className="mt-3 rounded-xl bg-amber-50 px-4 py-2 text-sm text-warn">
-                You connected {agency.googleAccountEmail}, but the expected agency account is {expected}.
-              </p>
+            {agency.lastError && (
+              <Notice tone="bad" icon={AlertTriangle} className="mt-4">
+                {agency.lastError}
+              </Notice>
             )}
-            <div className="mt-4 flex flex-wrap gap-2">
+            {agency.needsConfirmation && (
+              <Notice tone="warn" icon={AlertTriangle} className="mt-4">
+                You connected {agency.googleAccountEmail}, but the expected agency account is {expected}.
+              </Notice>
+            )}
+            <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-5">
               {agency.needsConfirmation && owner && (
-                <Button disabled={confirm.isPending} onClick={() => confirm.mutate(agency.id)}>
+                <Button loading={confirm.isPending} onClick={() => confirm.mutate(agency.id)}>
                   Use this account
                 </Button>
               )}
-              <Button variant="secondary" disabled={reconnect.isPending} onClick={() => reconnect.mutate(agency.id)}>
+              <Button variant="secondary" loading={reconnect.isPending} onClick={() => reconnect.mutate(agency.id)}>
+                {!reconnect.isPending && <RefreshCw aria-hidden />}
                 Reconnect
               </Button>
               {owner && (
-                <Button
-                  variant="danger"
-                  disabled={disconnect.isPending}
-                  onClick={() => {
-                    if (window.confirm("Disconnect this account? Clients will need a reconnect. Their data is kept.")) disconnect.mutate(agency.id);
-                  }}
-                >
+                <Button variant="danger" className="sm:ml-auto" onClick={() => setConfirmingDisconnect(true)}>
+                  <Unplug aria-hidden />
                   Disconnect
                 </Button>
               )}
             </div>
           </>
         )}
-        {error && (
-          <p role="alert" className="mt-2 text-sm text-bad">
-            {error.message}
-          </p>
-        )}
       </Card>
       {agency && active && <LocationChecklist connectionId={agency.id} />}
+      {agency && (
+        <ConfirmDialog
+          open={confirmingDisconnect}
+          onOpenChange={setConfirmingDisconnect}
+          title="Disconnect this account?"
+          description="Clients will need a reconnect. Their data is kept."
+          confirmLabel="Disconnect"
+          danger
+          loading={disconnect.isPending}
+          onConfirm={() => disconnect.mutate(agency.id)}
+        />
+      )}
     </>
   );
 }
@@ -260,16 +357,19 @@ function SetupGuide() {
   const steps = [
     "In Google Cloud, enable the Business Profile APIs: Account Management, Business Information, Performance, and My Business.",
     "Set up the OAuth consent screen and add axxeler@gmail.com and baranikumargd2@gmail.com as Test users.",
-    "Create a Web application OAuth client and add both redirect URIs above.",
+    "Create a Web application OAuth client and add both redirect URIs from the credentials card.",
     "Apply for Business Profile API access. Google asks for a verified profile active for 60+ days and a valid website.",
     "While the consent screen is in Testing, refresh tokens expire after 7 days, so reconnect the agency account weekly until the app is published.",
   ];
   return (
     <Card>
-      <CardTitle>Setup guide</CardTitle>
-      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm">
-        {steps.map((step) => (
-          <li key={step}>{step}</li>
+      <CardHeader icon={BookOpen} title="Setup guide" description="Once per Google Cloud project" className="mb-4" />
+      <ol className="space-y-3">
+        {steps.map((step, index) => (
+          <li key={step} className="flex gap-3 text-sm text-ink-soft">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-100 text-2xs font-semibold text-primary-800">{index + 1}</span>
+            <span className="min-w-0 pt-0.5">{step}</span>
+          </li>
         ))}
       </ol>
     </Card>
@@ -283,17 +383,31 @@ export default function GoogleSettingsPage() {
 
   return (
     <>
-      <PageHeader title="Google" subtitle="One agency account connects every client profile" />
+      <Link href="/settings?tab=google" className="mb-3 inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-muted hover:text-primary">
+        <ArrowLeft className="size-4" aria-hidden />
+        Settings
+      </Link>
+      <PageHeader title="Google" subtitle="One agency account connects every client profile." />
       <Suspense>
         <ConnectResult />
       </Suspense>
-      <div className="space-y-6">
-        {status.isPending && <Skeleton className="h-32" />}
-        {status.isError && <ErrorState error={status.error} onRetry={() => status.refetch()} />}
-        {status.data && <SetupStatus status={status.data} />}
-        <CredentialsCard owner={owner} />
-        {status.data && <AgencyCard owner={owner} expected={status.data.expectedAgencyEmail} />}
-        <SetupGuide />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <aside className="space-y-6 lg:sticky lg:top-6 lg:order-2">
+          {status.isPending && <Skeleton className="h-[300px] rounded-card" />}
+          {status.isError && <ErrorState error={status.error} onRetry={() => status.refetch()} />}
+          {status.data && <SetupStatus status={status.data} />}
+          <div className="hidden lg:block">
+            <SetupGuide />
+          </div>
+        </aside>
+        <div className="min-w-0 space-y-6 lg:order-1">
+          <CredentialsCard owner={owner} />
+          {status.isPending && <Skeleton className="h-[260px] rounded-card" />}
+          {status.data && <AgencyCard owner={owner} expected={status.data.expectedAgencyEmail} />}
+          <div className="lg:hidden">
+            <SetupGuide />
+          </div>
+        </div>
       </div>
     </>
   );

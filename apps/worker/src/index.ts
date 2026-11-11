@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { parseKey } from "@localpilot/crypto";
 import { createDb } from "@localpilot/db";
-import { createGbpAdapter } from "@localpilot/gbp";
+import { createGbpAdapter, sampleDataAllowed } from "@localpilot/gbp";
 import { createMailProvider, Messenger } from "@localpilot/notify";
 import { checkConnections, deliverEmail, dispatchDueJobs, finishConnect, generateDueDrafts, materializeAll, MAIL_QUEUE, materializeAllSeo, pollAllWorkspaces, publishDueReplies, resolveCredentials, sendDueReminders, syncAllClients, syncAllReviews, type Deps, type MailJob } from "@localpilot/services";
 import { Storage } from "@localpilot/storage";
@@ -58,7 +58,7 @@ const deps: Deps = {
     db,
     credentials: () => resolveCredentials(deps),
     maxQpm: Number(process.env.GOOGLE_MAX_QPM ?? 240),
-    mockSample: process.env.MOCK_SAMPLE_DATA === "true",
+    mockSample: sampleDataAllowed(process.env.MOCK_SAMPLE_DATA === "true", process.env.APP_ENV),
     mockEmail: agencyEmail,
   }),
   messenger: new Messenger({

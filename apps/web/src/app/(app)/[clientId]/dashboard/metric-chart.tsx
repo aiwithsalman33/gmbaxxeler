@@ -1,7 +1,8 @@
 "use client";
 
+import { Eye, MousePointerClick, Navigation, Phone, type LucideIcon } from "lucide-react";
 import { useState } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { CardTitle } from "@/components/ui/card";
 import type { Dashboard, Totals } from "@/lib/types";
@@ -9,11 +10,11 @@ import { formatNumber } from "@/lib/utils";
 
 export type MetricKey = keyof Totals;
 
-export const METRICS: { key: MetricKey; label: string }[] = [
-  { key: "views", label: "Total views" },
-  { key: "calls", label: "Calls" },
-  { key: "directions", label: "Direction requests" },
-  { key: "websiteClicks", label: "Website clicks" },
+export const METRICS: { key: MetricKey; label: string; icon: LucideIcon }[] = [
+  { key: "views", label: "Total views", icon: Eye },
+  { key: "calls", label: "Calls", icon: Phone },
+  { key: "directions", label: "Direction requests", icon: Navigation },
+  { key: "websiteClicks", label: "Website clicks", icon: MousePointerClick },
 ];
 
 const shortDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en", { day: "numeric", month: "short", timeZone: "UTC" });
@@ -25,45 +26,59 @@ export function MetricChart({ metric, series }: { metric: MetricKey; series: Das
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <CardTitle>{label} per day</CardTitle>
-        <Button size="sm" variant="ghost" onClick={() => setAsTable(!asTable)}>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <CardTitle>{label} per day</CardTitle>
+          <p className="mt-0.5 text-sm text-muted">Pick a metric card above to change the chart</p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={() => setAsTable(!asTable)} aria-pressed={asTable}>
           {asTable ? "Show chart" : "Show table"}
         </Button>
       </div>
       {asTable ? (
-        <div className="max-h-72 overflow-y-auto">
+        <div className="h-72 overflow-y-auto rounded-xl border border-line">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted">
-                <th className="py-1 font-medium">Date</th>
-                <th className="py-1 text-right font-medium">{label}</th>
+            <thead className="sticky top-0 bg-lavender">
+              <tr className="text-left text-xs text-muted uppercase">
+                <th scope="col" className="px-4 py-2 font-semibold">
+                  Date
+                </th>
+                <th scope="col" className="px-4 py-2 text-right font-semibold">
+                  {label}
+                </th>
               </tr>
             </thead>
             <tbody>
               {series.map((point) => (
                 <tr key={point.date} className="border-t border-line">
-                  <td className="py-1.5">{shortDate(point.date)}</td>
-                  <td className="py-1.5 text-right">{formatNumber(point[metric])}</td>
+                  <td className="px-4 py-2">{shortDate(point.date)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{formatNumber(point[metric])}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="h-72">
+        <div className="h-72" role="img" aria-label={`${label} per day chart`}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-              <CartesianGrid vertical={false} stroke="var(--color-line)" />
-              <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 12, fill: "var(--color-muted)" }} tickLine={false} axisLine={false} minTickGap={40} />
-              <YAxis tick={{ fontSize: 12, fill: "var(--color-muted)" }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
+              <defs>
+                <linearGradient id="metricFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke="#ebe7f7" strokeDasharray="4 4" />
+              <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 12, fill: "#6b6880" }} tickLine={false} axisLine={false} minTickGap={40} />
+              <YAxis tick={{ fontSize: 12, fill: "#6b6880" }} tickLine={false} axisLine={false} allowDecimals={false} width={48} />
               <Tooltip
                 labelFormatter={(date) => shortDate(String(date))}
                 formatter={(value) => [formatNumber(Number(value)), label]}
-                contentStyle={{ borderRadius: 12, border: "1px solid var(--color-line)", fontSize: 13 }}
+                cursor={{ stroke: "#c4b5fd", strokeWidth: 1 }}
+                contentStyle={{ borderRadius: 12, border: "1px solid #ebe7f7", fontSize: 13, boxShadow: "0 12px 32px rgb(76 29 149 / 0.12)" }}
               />
-              <Line type="monotone" dataKey={metric} stroke="var(--color-primary)" strokeWidth={2} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
-            </LineChart>
+              <Area type="monotone" dataKey={metric} stroke="#7c3aed" strokeWidth={2.5} fill="url(#metricFill)" dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       )}

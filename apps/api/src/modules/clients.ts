@@ -13,6 +13,7 @@ import {
   pollInvitations,
   queueEmail,
   whatsappLink,
+  isDemoClient,
 } from "@localpilot/services";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
@@ -42,11 +43,12 @@ export function clientRoutes(ctx: AppContext) {
     const app = base.withTypeProvider<ZodTypeProvider>();
 
     app.get("/clients", async (request) => {
-      return db.client.findMany({
+      const clients = await db.client.findMany({
         where: { workspaceId: request.auth.workspaceId, status: { not: "removed" } },
         include: { stats: { select: { strengthScore: true, rating: true } } },
         orderBy: { name: "asc" },
       });
+      return clients.map((client) => ({ ...client, demo: isDemoClient(client) }));
     });
 
     app.post("/clients", { schema: { body: addClientSchema } }, async (request, reply) => {

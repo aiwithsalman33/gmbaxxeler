@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, Send } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input, Label } from "@/components/ui/input";
+import { CountField, DaysField, ScheduleFrame, TimeField, TimezoneField, countValid } from "@/components/schedule/schedule-form";
+import { browserZone, scheduleSummary } from "@/components/schedule/utils";
+import { Field, Input, Select } from "@/components/ui/input";
+import { toast, toastError } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { CTA_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -18,22 +20,25 @@ export interface SeoScheduleResponse {
   ctaUrl: string | null;
 }
 
-const DAYS = [
-  [1, "Mon"],
-  [2, "Tue"],
-  [3, "Wed"],
-  [4, "Thu"],
-  [5, "Fri"],
-  [6, "Sat"],
-  [7, "Sun"],
+const MODES = [
+  { value: "draft", icon: CheckCircle2, title: "Drafts for approval", body: "AI writes each post ahead of time. You approve it before it goes live." },
+  { value: "auto", icon: Send, title: "Auto-publish", body: "AI writes and publishes each post on schedule, no review needed." },
 ] as const;
+
+const isUrl = (value: string) => {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+};
 
 export function SeoScheduleCard({ clientId, data }: { clientId: string; data: SeoScheduleResponse }) {
   const queryClient = useQueryClient();
   const saved = data.schedule;
   const [weekdays, setWeekdays] = useState<number[]>(saved?.weekdays ?? [1, 3, 5]);
   const [localTime, setLocalTime] = useState(saved?.localTime ?? "16:00");
-  const [timezone, setTimezone] = useState(saved?.timezone ?? (data.timezone === "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : data.timezone));
+  const [timezone, setTimezone] = useState(saved?.timezone ?? (data.timezone === "UTC" ? browserZone() : data.timezone));
   const [countPerDay, setCountPerDay] = useState(saved?.countPerDay ?? 1);
   const [enabled, setEnabled] = useState(saved?.enabled ?? true);
   const [seoMode, setSeoMode] = useState(data.seoMode);
@@ -41,95 +46,104 @@ export function SeoScheduleCard({ clientId, data }: { clientId: string; data: Se
   const [ctaType, setCtaType] = useState(data.ctaType);
   const [ctaUrl, setCtaUrl] = useState(data.ctaUrl ?? "");
 
+  const body = { weekdays, localTime, timezone, countPerDay, enabled, seoMode, draftLeadHours, ctaType, ctaUrl: ctaType === "CALL" ? null : ctaUrl || null };
   const save = useMutation({
-    mutationFn: () =>
-      api(`/clients/${clientId}/seo-schedule`, {
-        method: "PUT",
-        body: { weekdays, localTime, timezone, countPerDay, enabled, seoMode, draftLeadHours, ctaType, ctaUrl: ctaType === "CALL" ? null : ctaUrl || null },
-      }),
+    mutationFn: () => api(`/clients/${clientId}/seo-schedule`, { method: "PUT", body }),
     onSuccess: () => {
+      toast.success("Schedule saved", { description: enabled ? "Upcoming posts for the next 14 days are queued." : "The schedule is paused." });
       queryClient.invalidateQueries({ queryKey: ["seo-schedule", clientId] });
       queryClient.invalidateQueries({ queryKey: ["posts", clientId] });
     },
+    onError: (error) => toastError(error),
   });
 
+  const urlError = ctaType === "CALL" ? null : !ctaUrl ? "Add the link for this button." : !isUrl(ctaUrl) ? "Use a full link starting with https://" : null;
+  const dirty =
+    !saved ||
+    JSON.stringify(body) !==
+      JSON.stringify({
+        weekdays: saved.weekdays,
+        localTime: saved.localTime,
+        timezone: saved.timezone,
+        countPerDay: saved.countPerDay,
+        enabled: saved.enabled,
+        seoMode: data.seoMode,
+        draftLeadHours: data.draftLeadHours,
+        ctaType: data.ctaType,
+        ctaUrl: data.ctaType === "CALL" ? null : data.ctaUrl || null,
+      });
+  const valid = weekdays.length > 0 && countValid(countPerDay, 1, 5) && (seoMode === "auto" || countValid(draftLeadHours, 1, 168)) && !urlError;
+
   return (
-    <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <CardTitle>Schedule</CardTitle>
-        <p className="text-sm text-muted">{weekdays.length * countPerDay} posts a week</p>
+    <ScheduleFrame
+      title="Post schedule"
+      description="AI writes Google posts from this client's knowledge base and SEO Post Images folder."
+      enabled={enabled}
+      onEnabledChange={setEnabled}
+      summary={scheduleSummary({ noun: ["post", "posts"], weekdays, countPerDay: countValid(countPerDay, 1, 5) ? countPerDay : 1, localTime, timezone })}
+      dirty={dirty}
+      saving={save.isPending}
+      canSave={valid && !save.isPending}
+      onSave={() => save.mutate()}
+    >
+      <DaysField label="Post days" value={weekdays} onChange={setWeekdays} />
+      <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+        <TimeField value={localTime} onChange={setLocalTime} />
+        <TimezoneField value={timezone} onChange={setTimezone} />
+        <CountField label="Posts per day" value={countPerDay} onChange={setCountPerDay} min={1} max={5} />
       </div>
-      <div role="group" aria-label="Post days" className="mt-4 flex flex-wrap gap-2">
-        {DAYS.map(([day, label]) => (
-          <button
-            key={day}
-            type="button"
-            aria-pressed={weekdays.includes(day)}
-            onClick={() => setWeekdays(weekdays.includes(day) ? weekdays.filter((d) => d !== day) : [...weekdays, day])}
-            className={cn("h-10 w-14 cursor-pointer rounded-xl border text-sm font-medium", weekdays.includes(day) ? "border-primary bg-primary text-white" : "border-line bg-white text-muted hover:bg-lavender")}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
-          <Label htmlFor="seoTime">Time</Label>
-          <Input id="seoTime" type="time" value={localTime} onChange={(event) => setLocalTime(event.target.value)} />
+
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium text-ink">Publishing</legend>
+        <div role="radiogroup" aria-label="Publishing" className="grid gap-3 sm:grid-cols-2">
+          {MODES.map(({ value, icon: Icon, title, body: text }) => {
+            const on = seoMode === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => setSeoMode(value)}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-left transition-[border-color,box-shadow,background-color] focus-visible:shadow-focus focus-visible:outline-none",
+                  on ? "border-primary bg-primary-50 ring-1 ring-primary" : "border-line-strong bg-white hover:border-primary-300",
+                )}
+              >
+                <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", on ? "bg-primary text-white" : "bg-primary-50 text-primary")}>
+                  <Icon className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-ink">{title}</span>
+                  <span className="mt-0.5 block text-xs text-muted">{text}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
-        <div>
-          <Label htmlFor="seoTimezone">Timezone</Label>
-          <Input id="seoTimezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} />
-        </div>
-        <div>
-          <Label htmlFor="seoCount">Posts per day</Label>
-          <Input id="seoCount" type="number" min={1} max={5} value={countPerDay} onChange={(event) => setCountPerDay(Number(event.target.value))} />
-        </div>
-        <div>
-          <Label htmlFor="seoMode">Publishing</Label>
-          <select id="seoMode" className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm" value={seoMode} onChange={(event) => setSeoMode(event.target.value as "auto" | "draft")}>
-            <option value="draft">Drafts for approval</option>
-            <option value="auto">Auto-publish</option>
-          </select>
-        </div>
-        {seoMode === "draft" && (
-          <div>
-            <Label htmlFor="lead">Write drafts (hours ahead)</Label>
-            <Input id="lead" type="number" min={1} max={168} value={draftLeadHours} onChange={(event) => setDraftLeadHours(Number(event.target.value))} />
-          </div>
+      </fieldset>
+
+      <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+        {seoMode === "draft" && <CountField label="Write drafts ahead (hours)" hint="Time you have to review each post." value={draftLeadHours} onChange={setDraftLeadHours} min={1} max={168} />}
+        <Field label="Post button">
+          {(props) => (
+            <Select {...props} value={ctaType} onChange={(event) => setCtaType(event.target.value)}>
+              {Object.entries(CTA_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        {ctaType === "CALL" ? (
+          <p className="self-center rounded-xl bg-lavender px-4 py-3 text-xs text-muted sm:self-end">Call buttons use the phone number on the Google profile.</p>
+        ) : (
+          <Field label="Button link" error={ctaUrl ? urlError : null} hint={!ctaUrl ? "Required for this button." : undefined}>
+            {(props) => <Input {...props} type="url" inputMode="url" placeholder="https://" value={ctaUrl} onChange={(event) => setCtaUrl(event.target.value)} />}
+          </Field>
         )}
-        <div>
-          <Label htmlFor="seoCta">Button</Label>
-          <select id="seoCta" className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm" value={ctaType} onChange={(event) => setCtaType(event.target.value)}>
-            {Object.entries(CTA_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        {ctaType !== "CALL" && (
-          <div>
-            <Label htmlFor="seoCtaUrl">Button link</Label>
-            <Input id="seoCtaUrl" type="url" placeholder="https://" value={ctaUrl} onChange={(event) => setCtaUrl(event.target.value)} />
-          </div>
-        )}
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-4">
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" className="size-4 accent-primary" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-          Schedule on
-        </label>
-        <Button className="ml-auto" disabled={save.isPending || weekdays.length === 0} onClick={() => save.mutate()}>
-          {save.isPending ? "Saving" : "Save schedule"}
-        </Button>
-      </div>
-      {save.isSuccess && <p className="mt-2 text-sm text-good">Schedule saved.</p>}
-      {save.isError && (
-        <p role="alert" className="mt-2 text-sm text-bad">
-          {save.error.message}
-        </p>
-      )}
-    </Card>
+    </ScheduleFrame>
   );
 }

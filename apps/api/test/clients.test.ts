@@ -1,5 +1,5 @@
-import { MockGbpAdapter } from "@localpilot/gbp";
-import { sendDueReminders, syncClient } from "@localpilot/services";
+import { MockGbpAdapter, sampleDataAllowed } from "@localpilot/gbp";
+import { removeAllDemoData, sendDueReminders, syncClient } from "@localpilot/services";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadEnv } from "../src/config";
 import { connectGoogle, createHarness, login, OTHER_EMAIL, resetDb, type Cookies, type Harness } from "./helpers";
@@ -283,6 +283,61 @@ describe("mock data", () => {
     };
     expect(() => loadEnv({ ...production, GBP_ADAPTER: "mock", AI_ADAPTER: "mock" })).not.toThrow();
     expect(() => loadEnv({ ...production, GBP_ADAPTER: "real", AI_ADAPTER: "openai" })).not.toThrow();
+  });
+});
+
+describe("demo data", () => {
+  it("is never seeded in production, even with MOCK_SAMPLE_DATA=true", async () => {
+    expect(sampleDataAllowed(true, "development")).toBe(true);
+    expect(sampleDataAllowed(true, "production")).toBe(false);
+    expect(sampleDataAllowed(false, "development")).toBe(false);
+    const prod = await createHarness({
+      APP_ENV: "production",
+      MOCK_SAMPLE_DATA: "true",
+      MAIL_PROVIDER: "smtp",
+      SMTP_HOST: "smtp.example.com",
+      SMTP_USER: "u",
+      SMTP_PASS: "p",
+      MAIL_FROM: "x@example.com",
+    });
+    await resetDb(prod);
+    const session = await login(prod);
+    await connectGoogle(prod, session);
+    const response = await prod.app.inject({ method: "GET", url: "/api/v1/locations/unattached", cookies: session });
+    expect(response.json()).toEqual([]);
+    await prod.app.close();
+    await prod.ctx.db.$disconnect();
+  });
+
+  it("marks sample clients and removes them with everything linked, leaving real clients alone", async () => {
+    await api("POST", "/clients/import", { all: true });
+    const real = await addClient("Harbor View Dental");
+    const listed = (await api("GET", "/clients")).json();
+    expect(listed.filter((c: { demo: boolean }) => c.demo)).toHaveLength(10);
+    expect(listed.find((c: { id: string }) => c.id === real.id).demo).toBe(false);
+    expect((await api("GET", "/settings/demo-data")).json().clients).toHaveLength(10);
+    const demoId = listed.find((c: { demo: boolean }) => c.demo).id;
+    expect(await h.ctx.db.libraryFolder.count({ where: { clientId: demoId } })).toBeGreaterThan(0);
+
+    const removed = await api("DELETE", "/settings/demo-data");
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json()).toMatchObject({ clients: 10, mockLocations: 10 });
+
+    expect((await api("GET", "/clients")).json().map((c: { id: string }) => c.id)).toEqual([real.id]);
+    expect(await h.ctx.db.libraryFolder.count({ where: { clientId: demoId } })).toBe(0);
+    expect(await h.ctx.db.metricSnapshot.count({ where: { clientId: demoId } })).toBe(0);
+    expect(await h.ctx.db.auditLog.count({ where: { clientId: demoId } })).toBe(0);
+    // The fake Google account no longer offers them for import.
+    expect((await api("GET", "/locations/unattached")).json()).toEqual([]);
+    // Repeating is a no-op.
+    expect((await api("DELETE", "/settings/demo-data")).json()).toMatchObject({ clients: 0 });
+  });
+
+  it("cleans every workspace at once, as production startup does", async () => {
+    await api("POST", "/clients/import", { all: true });
+    const result = await removeAllDemoData(h.ctx.deps);
+    expect(result.clients).toBe(10);
+    expect((await api("GET", "/clients")).json()).toEqual([]);
   });
 });
 

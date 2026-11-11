@@ -7,3 +7,8 @@ coverage
 .env
 .env.local
 next-env.d.ts
+
+# Playwright output
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/screenshots/

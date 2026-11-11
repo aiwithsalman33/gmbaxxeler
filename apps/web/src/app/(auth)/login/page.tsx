@@ -1,12 +1,15 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { AlertCircle, CheckCircle2, Info, MailWarning } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
-import { AuthCard, FormError } from "@/components/auth-card";
+import { AuthCard, authLink, FormError, GoogleButton, OrDivider } from "@/components/auth-card";
+import { PasswordInput } from "@/components/password-strength";
+import { Notice } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Field, Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiFailure, apiUrl } from "@/lib/api";
 
@@ -25,9 +28,9 @@ function GoogleError() {
   const message = GOOGLE_ERRORS[useSearchParams().get("error") ?? ""];
   if (!message) return null;
   return (
-    <p role="alert" className="mb-4 text-sm text-bad">
+    <Notice tone="bad" icon={AlertCircle} className="mb-5">
       {message}
-    </p>
+    </Notice>
   );
 }
 
@@ -43,6 +46,7 @@ export default function LoginPage() {
   const resend = useMutation({ mutationFn: () => api("/auth/resend-verification", { method: "POST", body: { email } }) });
   const unverified = login.error instanceof ApiFailure && login.error.code === "email_not_verified";
   const passwordOn = options.data?.password ?? true;
+  const googleOn = options.data?.google ?? false;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -51,13 +55,13 @@ export default function LoginPage() {
 
   return (
     <AuthCard
-      title="Log in"
-      subtitle="Welcome back"
+      title="Welcome back"
+      subtitle="Log in to manage your clients' Business Profiles."
       footer={
         passwordOn ? (
           <>
-            New here?{" "}
-            <Link href="/register" className="font-medium text-primary">
+            New to LocalPilot?{" "}
+            <Link href="/register" className={authLink}>
               Create an account
             </Link>
           </>
@@ -67,41 +71,70 @@ export default function LoginPage() {
       <Suspense>
         <GoogleError />
       </Suspense>
-      {options.isPending && <Skeleton className="mb-4 h-10" />}
-      {options.data?.google && (
-        <Button asChild variant="secondary" className="mb-4 w-full">
-          <a href={apiUrl("/auth/google/start")}>Continue with Google</a>
-        </Button>
-      )}
-      {options.data?.google && passwordOn && <p className="mb-4 text-center text-xs text-muted">or use your password</p>}
-      {options.isError && <p className="mb-4 text-sm text-muted">Couldn't check sign-in options. Your password still works.</p>}
-      {passwordOn && (
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <Label htmlFor="email">Email address</Label>
-            <Input id="email" type="email" required autoComplete="email" autoFocus value={email} onChange={(event) => setEmail(event.target.value)} />
-          </div>
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <Label htmlFor="password" className="mb-0">
-                Password
-              </Label>
-              <Link href="/forgot-password" className="text-xs font-medium text-primary">
-                Forgot password?
-              </Link>
-            </div>
-            <Input id="password" type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </div>
-          <FormError error={login.error} />
-          {unverified && (
-            <Button type="button" variant="secondary" size="sm" disabled={resend.isPending || resend.isSuccess} onClick={() => resend.mutate()}>
-              {resend.isSuccess ? "Link sent. Check your inbox." : "Send a new verification link"}
-            </Button>
+
+      {options.isPending && <Skeleton className="h-11" />}
+      {options.isSuccess && (
+        <div>
+          <GoogleButton href={googleOn ? apiUrl("/auth/google/start") : undefined} describedBy="google-off" />
+          {!googleOn && (
+            <p id="google-off" className="mt-2 text-center text-xs text-muted">
+              Google sign-in isn&apos;t set up for this workspace yet.{passwordOn && " Use your email and password below."}
+            </p>
           )}
-          <Button type="submit" className="w-full" disabled={login.isPending}>
-            {login.isPending ? "Logging in" : "Log in"}
-          </Button>
-        </form>
+        </div>
+      )}
+      {options.isError && (
+        <Notice tone="info" icon={Info}>
+          Couldn&apos;t check sign-in options. Your password still works.
+        </Notice>
+      )}
+
+      {passwordOn && (
+        <>
+          {options.isError ? <div className="h-5" /> : <OrDivider />}
+          <form onSubmit={submit} className="space-y-5">
+            <Field label="Email address">
+              {(field) => <Input {...field} type="email" required autoComplete="email" autoFocus placeholder="you@agency.com" value={email} onChange={(event) => setEmail(event.target.value)} />}
+            </Field>
+            <Field
+              label="Password"
+              action={
+                <Link href="/forgot-password" className="rounded text-xs font-semibold text-primary hover:underline focus-visible:shadow-focus focus-visible:outline-none">
+                  Forgot password?
+                </Link>
+              }
+            >
+              {(field) => <PasswordInput {...field} required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />}
+            </Field>
+
+            {unverified ? (
+              resend.isSuccess ? (
+                <Notice tone="good" icon={CheckCircle2} title="Link sent">
+                  Check your inbox for a new verification link.
+                </Notice>
+              ) : (
+                <Notice
+                  tone="warn"
+                  icon={MailWarning}
+                  title="Please verify your email first"
+                  action={
+                    <Button type="button" variant="secondary" size="sm" loading={resend.isPending} onClick={() => resend.mutate()}>
+                      Send a new link
+                    </Button>
+                  }
+                >
+                  {resend.error ? resend.error.message : "We sent you a link when you signed up."}
+                </Notice>
+              )
+            ) : (
+              <FormError error={login.error} />
+            )}
+
+            <Button type="submit" size="lg" className="w-full" loading={login.isPending}>
+              {login.isPending ? "Logging in" : "Log in"}
+            </Button>
+          </form>
+        </>
       )}
     </AuthCard>
   );

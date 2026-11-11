@@ -1,3 +1,4 @@
+import { removeAllDemoData } from "@localpilot/services";
 import { buildApp } from "./app";
 import { createContext } from "./bootstrap";
 import { loadEnv } from "./config";
@@ -25,6 +26,15 @@ async function start() {
   startupLog("4/5 Creating the first owner account");
   // A failed seed only affects that account, so the app still starts.
   await seedAdmin(ctx).then(startupLog, (error: unknown) => startupLog(`Owner account skipped: ${failureText(error)}`));
+
+  if (env.APP_ENV === "production") {
+    // Demo businesses must never show in production, including ones seeded before this rule existed.
+    await removeAllDemoData(ctx.deps).then(
+      (r) => startupLog(r.clients || r.mockLocations ? `Removed demo data: ${r.clients} clients, ${r.images} images, ${r.mockLocations} mock locations` : "No demo data found"),
+      (error: unknown) => startupLog(`Demo data cleanup skipped: ${failureText(error)}`),
+    );
+    if (env.MOCK_SAMPLE_DATA) startupLog("MOCK_SAMPLE_DATA=true is ignored in production");
+  }
 
   step = `API server on port ${env.PORT}`;
   startupLog(`5/5 Starting the API on 0.0.0.0:${env.PORT}`);

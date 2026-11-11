@@ -1,6 +1,6 @@
 import { parseKey } from "@localpilot/crypto";
 import { createDb } from "@localpilot/db";
-import { createGbpAdapter } from "@localpilot/gbp";
+import { createGbpAdapter, sampleDataAllowed } from "@localpilot/gbp";
 import { createMailProvider, Messenger } from "@localpilot/notify";
 import { resolveCredentials, type Deps, type Logger } from "@localpilot/services";
 import { Storage } from "@localpilot/storage";
@@ -43,7 +43,7 @@ export function createContext(
         credentials: () => resolveCredentials(deps),
         fetch: googleHttp,
         maxQpm: env.GOOGLE_MAX_QPM,
-        mockSample: env.MOCK_SAMPLE_DATA,
+        mockSample: sampleDataAllowed(env.MOCK_SAMPLE_DATA, env.APP_ENV),
         mockEmail: agencyEmail,
       }),
       messenger,

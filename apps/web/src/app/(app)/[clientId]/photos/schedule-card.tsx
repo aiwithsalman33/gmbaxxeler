@@ -1,13 +1,13 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Input, Label } from "@/components/ui/input";
+import { useState } from "react";
+import { CountField, DaysField, ScheduleFrame, TimeField, TimezoneField, countValid } from "@/components/schedule/schedule-form";
+import { browserZone, scheduleSummary } from "@/components/schedule/utils";
+import { Field, Select, Switch } from "@/components/ui/input";
+import { toast, toastError } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { CATEGORY_LABELS, PHOTO_CATEGORIES, type PhotoSchedule } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 export interface ScheduleResponse {
   schedule: PhotoSchedule | null;
@@ -15,18 +15,6 @@ export interface ScheduleResponse {
   aiRenameEnabled: boolean;
   weekly: number;
 }
-
-const DAYS = [
-  [1, "Mon"],
-  [2, "Tue"],
-  [3, "Wed"],
-  [4, "Thu"],
-  [5, "Fri"],
-  [6, "Sat"],
-  [7, "Sun"],
-] as const;
-
-const browserZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export function ScheduleCard({ clientId, data }: { clientId: string; data: ScheduleResponse }) {
   const queryClient = useQueryClient();
@@ -37,97 +25,73 @@ export function ScheduleCard({ clientId, data }: { clientId: string; data: Sched
   const [countPerDay, setCountPerDay] = useState(saved?.countPerDay ?? 1);
   const [defaultCategory, setDefaultCategory] = useState(saved?.defaultCategory ?? "ADDITIONAL");
   const [enabled, setEnabled] = useState(saved?.enabled ?? true);
-  const zones = useMemo(() => Intl.supportedValuesOf("timeZone"), []);
 
   const refresh = () =>
     Promise.all(["photo-schedule", "photo-queue", "client"].map((key) => queryClient.invalidateQueries({ queryKey: [key, clientId] })));
 
+  const body = { weekdays, localTime, timezone, countPerDay, defaultCategory, enabled };
   const save = useMutation({
-    mutationFn: () =>
-      api(`/clients/${clientId}/photo-schedule`, {
-        method: "PUT",
-        body: { weekdays, localTime, timezone, countPerDay, defaultCategory, enabled },
-      }),
-    onSuccess: refresh,
+    mutationFn: () => api(`/clients/${clientId}/photo-schedule`, { method: "PUT", body }),
+    onSuccess: () => {
+      toast.success("Schedule saved", { description: enabled ? "The next 14 days of uploads are queued." : "The schedule is paused." });
+      return refresh();
+    },
+    onError: (error) => toastError(error),
   });
   const toggleRename = useMutation({
     mutationFn: (aiRenameEnabled: boolean) => api(`/clients/${clientId}`, { method: "PATCH", body: { aiRenameEnabled } }),
-    onSuccess: refresh,
+    onSuccess: (_, on) => {
+      toast.success(on ? "AI renaming is on" : "AI renaming is off");
+      return refresh();
+    },
+    onError: (error) => toastError(error),
   });
 
-  const toggleDay = (day: number) => setWeekdays(weekdays.includes(day) ? weekdays.filter((d) => d !== day) : [...weekdays, day]);
+  const dirty =
+    !saved ||
+    JSON.stringify(body) !==
+      JSON.stringify({ weekdays: saved.weekdays, localTime: saved.localTime, timezone: saved.timezone, countPerDay: saved.countPerDay, defaultCategory: saved.defaultCategory, enabled: saved.enabled });
+  const valid = weekdays.length > 0 && countValid(countPerDay, 1, 10);
+  const renameOn = toggleRename.isPending ? toggleRename.variables : data.aiRenameEnabled;
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <CardTitle>Schedule</CardTitle>
-        <p className="text-sm text-muted">{weekdays.length * countPerDay} photos a week</p>
+    <ScheduleFrame
+      title="Upload schedule"
+      description="Photos from the Photos folder are uploaded to Google on these days."
+      enabled={enabled}
+      onEnabledChange={setEnabled}
+      summary={scheduleSummary({ noun: ["photo", "photos"], weekdays, countPerDay: countValid(countPerDay, 1, 10) ? countPerDay : 1, localTime, timezone })}
+      dirty={dirty}
+      saving={save.isPending}
+      canSave={valid && !save.isPending}
+      onSave={() => save.mutate()}
+    >
+      <DaysField label="Upload days" value={weekdays} onChange={setWeekdays} />
+      <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2 xl:grid-cols-4">
+        <TimeField value={localTime} onChange={setLocalTime} />
+        <TimezoneField value={timezone} onChange={setTimezone} />
+        <CountField label="Photos per day" value={countPerDay} onChange={setCountPerDay} min={1} max={10} />
+        <Field label="Google category" hint="Used unless you change it on an upload.">
+          {(props) => (
+            <Select {...props} value={defaultCategory} onChange={(event) => setDefaultCategory(event.target.value)}>
+              {PHOTO_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {CATEGORY_LABELS[category]}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
       </div>
-
-      <div role="group" aria-label="Days" className="mt-4 flex flex-wrap gap-2">
-        {DAYS.map(([day, label]) => (
-          <button
-            key={day}
-            type="button"
-            aria-pressed={weekdays.includes(day)}
-            onClick={() => toggleDay(day)}
-            className={cn("h-10 w-14 cursor-pointer rounded-xl border text-sm font-medium", weekdays.includes(day) ? "border-primary bg-primary text-white" : "border-line bg-white text-muted hover:bg-lavender")}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="rounded-xl border border-line bg-white p-4">
+        <Switch
+          checked={renameOn}
+          disabled={toggleRename.isPending}
+          onChange={(on) => toggleRename.mutate(on)}
+          label="Rename photos with AI"
+          description="Gives each file a descriptive, search-friendly name before upload. Saves right away."
+        />
       </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <Label htmlFor="time">Time</Label>
-          <Input id="time" type="time" value={localTime} onChange={(event) => setLocalTime(event.target.value)} />
-        </div>
-        <div>
-          <Label htmlFor="timezone">Timezone</Label>
-          <Input id="timezone" list="timezones" value={timezone} onChange={(event) => setTimezone(event.target.value)} />
-          <datalist id="timezones">
-            {zones.map((zone) => (
-              <option key={zone} value={zone} />
-            ))}
-          </datalist>
-        </div>
-        <div>
-          <Label htmlFor="count">Photos per day</Label>
-          <Input id="count" type="number" min={1} max={10} value={countPerDay} onChange={(event) => setCountPerDay(Number(event.target.value))} />
-        </div>
-        <div>
-          <Label htmlFor="category">Category</Label>
-          <select id="category" className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm" value={defaultCategory} onChange={(event) => setDefaultCategory(event.target.value)}>
-            {PHOTO_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {CATEGORY_LABELS[category]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" className="size-4 accent-primary" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-          Schedule on
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" className="size-4 accent-primary" checked={data.aiRenameEnabled} disabled={toggleRename.isPending} onChange={(event) => toggleRename.mutate(event.target.checked)} />
-          Rename photos with AI
-        </label>
-        <Button className="ml-auto" disabled={save.isPending || weekdays.length === 0} onClick={() => save.mutate()}>
-          {save.isPending ? "Saving" : "Save schedule"}
-        </Button>
-      </div>
-      {weekdays.length === 0 && <p className="mt-2 text-sm text-muted">Choose at least one day.</p>}
-      {save.isSuccess && <p className="mt-2 text-sm text-good">Schedule saved. The next 14 days are queued.</p>}
-      {(save.error ?? toggleRename.error) && (
-        <p role="alert" className="mt-2 text-sm text-bad">
-          {(save.error ?? toggleRename.error)?.message}
-        </p>
-      )}
-    </Card>
+    </ScheduleFrame>
   );
 }

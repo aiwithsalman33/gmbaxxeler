@@ -1,25 +1,23 @@
 "use client";
 
+import { CheckCircle2, XCircle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { Card } from "@/components/ui/card";
+import { AuthCard } from "@/components/auth-card";
 
 function Result() {
   const connected = useSearchParams().get("result") === "connected";
-  return (
-    <Card className="w-full max-w-md p-8 text-center">
-      <h1 className="text-xl font-bold">{connected ? "You're connected" : "That didn't work"}</h1>
-      <p className="mt-2 text-sm text-muted">{connected ? "You can close this page." : "Please ask your agency for a new link."}</p>
-    </Card>
+  return connected ? (
+    <AuthCard audience="client" icon={CheckCircle2} tone="good" title="You're connected" subtitle="Thanks! Your agency can now look after your Business Profile. You can close this page." />
+  ) : (
+    <AuthCard audience="client" icon={XCircle} tone="bad" title="That didn't work" subtitle="Your profile wasn't connected. Please ask your agency for a new link." />
   );
 }
 
 export default function InviteDonePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <Suspense>
-        <Result />
-      </Suspense>
-    </main>
+    <Suspense>
+      <Result />
+    </Suspense>
   );
 }
