@@ -158,6 +158,8 @@ export interface PhotoJob {
   category: string | null;
   image: { id: string; publicUrl: string; originalName: string; seoName: string | null } | null;
   logs?: { originalName: string | null; newName: string | null; meta: unknown }[];
+  /** Published through the mock adapter: nothing reached Google. */
+  simulated?: boolean;
 }
 
 export const CTA_LABELS: Record<string, string> = { LEARN_MORE: "Learn more", BOOK: "Book", ORDER: "Order", SHOP: "Shop", SIGN_UP: "Sign up", CALL: "Call" };
@@ -178,6 +180,25 @@ export interface PostJob {
   error: string | null;
   post: Post | null;
   image: { id: string; publicUrl: string; originalName: string } | null;
+  simulated?: boolean;
+}
+
+export type BlockerCode = "client_not_connected" | "schedule_off" | "no_schedule" | "folder_empty" | "worker_offline" | "api_not_approved" | "needs_approval";
+
+export interface Readiness {
+  ready: boolean;
+  simulated: boolean;
+  blockers: { code: BlockerCode; message: string; count?: number }[];
+}
+
+export interface WorkerHealth {
+  status: "online" | "offline" | "never_started";
+  lastBeatAt: string | null;
+  startedAt: string | null;
+  lastRunAt: string | null;
+  adapter: string | null;
+  adapterInUse: "mock" | "real";
+  jobs: { name: string; lastStartedAt: string | null; lastFinishedAt: string | null; lastDurationMs: number | null; lastError: string | null; runs: number; failures: number }[];
 }
 
 export interface ReviewReply {

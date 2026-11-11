@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { JobStatusBadge } from "@/components/job-status-badge";
 import { QueueSkeleton, useMockEnabled } from "@/components/schedule/page-parts";
+import { PublishNowButton } from "@/components/schedule/publishing";
 import { ScheduleQueue, type QueueItem } from "@/components/schedule/schedule-queue";
 import { formatDayTime } from "@/components/schedule/utils";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -26,7 +27,7 @@ export function usePhotoQueue(clientId: string) {
   return useQuery({ queryKey: ["photo-queue", clientId], queryFn: () => api<PhotoJob[]>(`/clients/${clientId}/photos/queue`) });
 }
 
-export function PhotoQueue({ clientId, timezone, hasSchedule }: { clientId: string; timezone: string; hasSchedule: boolean }) {
+export function PhotoQueue({ clientId, timezone, hasSchedule, simulated }: { clientId: string; timezone: string; hasSchedule: boolean; simulated: boolean }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<PhotoJob | null>(null);
   const [skipping, setSkipping] = useState<PhotoJob | null>(null);
@@ -119,6 +120,12 @@ export function PhotoQueue({ clientId, timezone, hasSchedule }: { clientId: stri
       ),
       actions: (
         <>
+          <PublishNowButton
+            path={`${base}/jobs/${job.id}/publish-now`}
+            label={`upload on ${formatDayTime(job.runAt, timezone)}`}
+            simulated={simulated}
+            invalidate={[["photo-queue", clientId], ["photo-history", clientId], ["library", clientId], ["photo-schedule", clientId]]}
+          />
           <Button size="sm" variant="ghost" onClick={() => openEdit(job)} aria-label={`Edit upload on ${formatDayTime(job.runAt, timezone)}`}>
             <Pencil aria-hidden />
             <span className="hidden sm:inline">Edit</span>

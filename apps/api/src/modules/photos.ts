@@ -1,6 +1,6 @@
 import { photoScheduleSchema, updateJobSchema } from "@localpilot/contracts";
 import { weeklyCount } from "@localpilot/core";
-import { materializeClient, regenerateClient } from "@localpilot/services";
+import { materializeClient, publishJobNow, PublishNowError, regenerateClient, scheduleReadiness } from "@localpilot/services";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -30,7 +30,13 @@ export function photoRoutes(ctx: AppContext) {
     app.get("/clients/:id/photo-schedule", { schema: { params: clientParams } }, async (request) => {
       const client = await scopedClient(ctx, request, request.params.id);
       const schedule = await db.photoSchedule.findUnique({ where: { clientId: client.id } });
-      return { schedule, timezone: client.timezone, aiRenameEnabled: client.aiRenameEnabled, weekly: schedule ? weeklyCount(schedule) : 0 };
+      return {
+        schedule,
+        timezone: client.timezone,
+        aiRenameEnabled: client.aiRenameEnabled,
+        weekly: schedule ? weeklyCount(schedule) : 0,
+        readiness: await scheduleReadiness(deps, client.id, "photo"),
+      };
     });
 
     app.put("/clients/:id/photo-schedule", { schema: { params: clientParams, body: photoScheduleSchema } }, async (request) => {
@@ -43,7 +49,7 @@ export function photoRoutes(ctx: AppContext) {
       });
       await db.client.update({ where: { id: client.id }, data: { timezone: body.timezone } });
       const created = await regenerateClient(deps, client.id);
-      return { schedule, created, weekly: weeklyCount(schedule) };
+      return { schedule, created, weekly: weeklyCount(schedule), readiness: await scheduleReadiness(deps, client.id, "photo") };
     });
 
     app.get("/clients/:id/photos/queue", { schema: { params: clientParams } }, async (request) => {
@@ -105,9 +111,23 @@ export function photoRoutes(ctx: AppContext) {
       return { ok: true };
     });
 
+    app.post("/clients/:id/photos/jobs/:jobId/publish-now", { schema: { params: jobParams }, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request) => {
+      const { job } = await scopedJob(request, request.params.id, request.params.jobId);
+      return runPublishNow(deps, job.id);
+    });
+
     app.post("/clients/:id/photos/generate", { schema: { params: clientParams } }, async (request) => {
       const client = await scopedClient(ctx, request, request.params.id);
       return { created: await materializeClient(deps, client.id) };
     });
   };
+}
+
+export async function runPublishNow(deps: AppContext["deps"], jobId: string) {
+  try {
+    return await publishJobNow(deps, jobId);
+  } catch (error) {
+    if (error instanceof PublishNowError) throw new ApiError(409, error.code, error.message);
+    throw error;
+  }
 }

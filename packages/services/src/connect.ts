@@ -74,7 +74,7 @@ export async function scanLocations(deps: Deps, connection: GoogleConnection): P
   }
 }
 
-async function recordApiAccess(deps: Deps, apiAccess: string): Promise<void> {
+export async function recordApiAccess(deps: Deps, apiAccess: string): Promise<void> {
   if (deps.gbp.name === "mock") return;
   await deps.db.appSettings.upsert({ where: { id: 1 }, create: { id: 1, apiAccess }, update: { apiAccess } });
 }

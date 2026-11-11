@@ -1,11 +1,12 @@
 import { seoScheduleSchema, updatePostSchema } from "@localpilot/contracts";
 import { weeklyCount } from "@localpilot/core";
-import { generatePostForJob, regenerateSeoClient } from "@localpilot/services";
+import { generatePostForJob, regenerateSeoClient, scheduleReadiness } from "@localpilot/services";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { ApiError, type AppContext } from "../context";
 import { scopedClient } from "../guards";
+import { runPublishNow } from "./photos";
 
 const clientParams = z.object({ id: z.string().uuid() });
 const jobParams = z.object({ id: z.string().uuid(), jobId: z.string().uuid() });
@@ -42,6 +43,7 @@ export function postRoutes(ctx: AppContext) {
         draftLeadHours: profile?.draftLeadHours ?? 48,
         ctaType: profile?.ctaType ?? "LEARN_MORE",
         ctaUrl: profile?.ctaUrl ?? null,
+        readiness: await scheduleReadiness(deps, client.id, "seo_post"),
       };
     });
 
@@ -56,17 +58,20 @@ export function postRoutes(ctx: AppContext) {
       });
       await db.clientProfile.upsert({ where: { clientId: client.id }, create: { clientId: client.id, ...defaults }, update: defaults });
       await db.client.update({ where: { id: client.id }, data: { timezone: rule.timezone } });
-      return { schedule, created: await regenerateSeoClient(deps, client.id), weekly: weeklyCount(schedule) };
+      const created = await regenerateSeoClient(deps, client.id);
+      return { schedule, created, weekly: weeklyCount(schedule), readiness: await scheduleReadiness(deps, client.id, "seo_post") };
     });
 
     app.get("/clients/:id/posts", { schema: { params: clientParams } }, async (request) => {
       const client = await scopedClient(ctx, request, request.params.id);
-      return db.scheduledJob.findMany({
+      // The newest posts matter most, so take the latest PAGE_SIZE and return them oldest first.
+      const latest = await db.scheduledJob.findMany({
         where: { workspaceId: client.workspaceId, clientId: client.id, type: "seo_post" },
         include: { post: true, image: { select: IMAGE_FIELDS } },
-        orderBy: { runAt: "asc" },
+        orderBy: { runAt: "desc" },
         take: PAGE_SIZE,
       });
+      return latest.reverse();
     });
 
     app.get("/clients/:id/posts/:jobId", { schema: { params: jobParams } }, async (request) => {
@@ -111,6 +116,11 @@ export function postRoutes(ctx: AppContext) {
       });
       if (count === 0) throw new ApiError(409, "post_not_editable", "Only upcoming posts can be skipped");
       return { ok: true };
+    });
+
+    app.post("/clients/:id/posts/:jobId/publish-now", { schema: { params: jobParams }, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request) => {
+      const { job } = await scopedJob(request, request.params.id, request.params.jobId);
+      return runPublishNow(deps, job.id);
     });
 
     app.post("/clients/:id/posts/:jobId/retry", { schema: { params: jobParams } }, async (request) => {

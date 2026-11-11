@@ -8,12 +8,14 @@ import { Field, Select, Switch } from "@/components/ui/input";
 import { toast, toastError } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { CATEGORY_LABELS, PHOTO_CATEGORIES, type PhotoSchedule } from "@/lib/types";
+import type { Readiness } from "@/lib/types";
 
 export interface ScheduleResponse {
   schedule: PhotoSchedule | null;
   timezone: string;
   aiRenameEnabled: boolean;
   weekly: number;
+  readiness?: Readiness;
 }
 
 export function ScheduleCard({ clientId, data }: { clientId: string; data: ScheduleResponse }) {

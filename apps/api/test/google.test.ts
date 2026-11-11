@@ -128,7 +128,7 @@ describe("agency connection", () => {
     const [connection] = (await api("GET", "/google/connections")).json();
     const scan = await api("POST", `/google/connections/${connection.id}/rescan`);
     expect(scan.statusCode).toBe(503);
-    expect(scan.json().error.message).toContain("not yet approved");
+    expect(scan.json().error.message).toBe("Google Business Profile API access is not approved for this project");
     expect((await api("GET", "/settings/google/status")).json().apiAccess).toBe("not_approved");
   });
 

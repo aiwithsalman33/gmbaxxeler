@@ -1,8 +1,9 @@
 import { expandSchedule, MAX_RETRIES, pickImages, retryDelayMs, rotationOrder, slugifyFilename } from "@localpilot/core";
 import { randomToken } from "@localpilot/crypto";
 import type { Client, LibraryImage, ScheduledJob } from "@localpilot/db";
-import { GbpError } from "@localpilot/gbp";
+import { GbpError, QUOTA_ZERO_MESSAGE } from "@localpilot/gbp";
 import { aiClientFor, recordUsage } from "./ai";
+import { recordApiAccess } from "./connect";
 import { notify, sessionFor, type Deps } from "./context";
 import { loadKnowledge } from "./knowledge";
 import { processPostJob, flagOverdueDrafts } from "./posts";
@@ -32,7 +33,11 @@ async function reservedImageIds(deps: Deps, clientId: string): Promise<Set<strin
 /** Creates jobs for the next 14 days. Safe to repeat: keys are unique per slot. */
 export async function materializeClient(deps: Deps, clientId: string, now = new Date()): Promise<number> {
   const schedule = await deps.db.photoSchedule.findUnique({ where: { clientId }, include: { client: true } });
-  if (!schedule?.enabled || schedule.client.status !== "connected") return 0;
+  if (!schedule?.enabled || schedule.client.status !== "connected") {
+    const reason = !schedule ? "no_schedule" : !schedule.enabled ? "schedule_off" : `client_${schedule.client.status}`;
+    deps.logger.info({ stage: "materialize.skipped", type: "photo", clientId, reason }, "photo jobs not created");
+    return 0;
+  }
 
   const slots = expandSchedule(schedule, now);
   const keyFor = (slot: (typeof slots)[number]) => `${clientId}:photo:${schedule.id}:${slot.localKey}:${slot.index}`;
@@ -60,6 +65,7 @@ export async function materializeClient(deps: Deps, clientId: string, now = new 
     })),
     skipDuplicates: true,
   });
+  deps.logger.info({ stage: "materialized", type: "photo", clientId, created: count, timezone: schedule.timezone, firstRunAt: fresh[0]?.runAt }, "photo jobs created");
   return count;
 }
 
@@ -181,6 +187,22 @@ export async function failJob(
   const permanent = error instanceof GbpError && error.kind !== "rate_limited" && error.kind !== "unavailable";
 
   await writeLog(deps, job, kind.action, { status: "failed", error: message, ...names, meta: { attempt: failures } });
+  deps.logger.warn(
+    { stage: "failed", type: job.type, jobId: job.id, clientId: job.clientId, attempt: failures, permanent, kind: error instanceof GbpError ? error.kind : "error", error: message },
+    "job failed",
+  );
+  if (error instanceof GbpError && error.kind === "quota_zero") {
+    // Retrying can't help until Google approves the project, so fail once with a clear reason.
+    await deps.db.scheduledJob.update({ where: { id: job.id }, data: { status: "failed", attempts: failures, error: QUOTA_ZERO_MESSAGE, finishedAt: now } });
+    await recordApiAccess(deps, "not_approved");
+    await alertOnce(deps, job, {
+      type: "gbp.quota_zero",
+      severity: "critical",
+      title: "Google API access not approved",
+      body: `${QUOTA_ZERO_MESSAGE}. Scheduled posts can't publish until Google approves it.`,
+    });
+    return;
+  }
   if (permanent) {
     await deps.db.scheduledJob.update({ where: { id: job.id }, data: { status: "failed", attempts: failures, error: message, finishedAt: now } });
     await applyGbpFailure(deps, client, error);
@@ -212,15 +234,18 @@ export async function processPhotoJob(deps: Deps, jobId: string, now = new Date(
 
   const job = await deps.db.scheduledJob.findUniqueOrThrow({ where: { id: jobId } });
   const client = await deps.db.client.findUniqueOrThrow({ where: { id: job.clientId }, include: { connection: true } });
+  deps.logger.info({ stage: "publishing", type: "photo", jobId, clientId: job.clientId, runAt: job.runAt, attempt: job.attempts + 1, adapter: deps.gbp.name }, "photo publishing");
 
   if (client.status === "paused") {
     await deps.db.scheduledJob.update({ where: { id: job.id }, data: { status: "skipped", error: "Client is paused", imageId: null, finishedAt: now } });
+    deps.logger.info({ stage: "skipped", type: "photo", jobId, reason: "client_paused" }, "photo skipped");
     return;
   }
   if (client.status !== "connected" || !client.connection) {
     const error = `Client is ${client.status.replace(/_/g, " ")}`;
     await deps.db.scheduledJob.update({ where: { id: job.id }, data: { status: "failed", error, finishedAt: now } });
     await writeLog(deps, job, "photo.upload", { status: "failed", error });
+    deps.logger.warn({ stage: "failed", type: "photo", jobId, error }, "photo failed");
     return;
   }
 
@@ -244,10 +269,11 @@ export async function processPhotoJob(deps: Deps, jobId: string, now = new Date(
       sourceUrl: image.publicUrl,
       category: job.category ?? "ADDITIONAL",
     });
+    const simulated = deps.gbp.name === "mock";
     await deps.db.$transaction([
       deps.db.scheduledJob.update({
         where: { id: job.id },
-        data: { status: "published", imageId: image.id, error: null, finishedAt: new Date() },
+        data: { status: "published", imageId: image.id, error: null, finishedAt: new Date(), simulated },
       }),
       deps.db.libraryImage.update({ where: { id: image.id }, data: { usageCount: { increment: 1 }, lastUsedAt: new Date() } }),
     ]);
@@ -256,8 +282,9 @@ export async function processPhotoJob(deps: Deps, jobId: string, now = new Date(
       originalName: image.originalName,
       newName: image.seoName ?? undefined,
       resource: uploaded.name,
-      meta: note ? { note } : {},
+      meta: { ...(note ? { note } : {}), ...(simulated ? { simulated: true } : {}) },
     });
+    deps.logger.info({ stage: "published", type: "photo", jobId, clientId: job.clientId, simulated, resource: uploaded.name }, "photo published");
   } catch (error) {
     await failJob(deps, job, client, image, error, now);
   }
@@ -288,6 +315,7 @@ export async function dispatchDueJobs(deps: Deps, now = new Date(), options: { j
     take: BATCH_SIZE,
     select: { id: true, type: true },
   });
+  if (due.length) deps.logger.info({ stage: "picked", count: due.length, jobIds: due.map((job) => job.id) }, "due jobs picked");
   for (const [position, { id, type }] of due.entries()) {
     if (position > 0 && options.jitter !== false) await pause(MIN_JITTER_MS + Math.random() * (MAX_JITTER_MS - MIN_JITTER_MS));
     await (type === "photo" ? processPhotoJob(deps, id, now) : processPostJob(deps, id, now));

@@ -11,6 +11,7 @@ import { ClientBanner } from "../client-banner";
 import { JobStatusBadge } from "@/components/job-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { QueueSkeleton, SchedulePageSkeleton, useMockEnabled } from "@/components/schedule/page-parts";
+import { PublishNowButton, ReadinessNotice, SimulatedBadge } from "@/components/schedule/publishing";
 import { ScheduleHistory, type HistoryRow } from "@/components/schedule/schedule-history";
 import { ScheduleQueue, type QueueItem } from "@/components/schedule/schedule-queue";
 import { formatDayTime } from "@/components/schedule/utils";
@@ -31,7 +32,10 @@ export default function SeoPostsPage() {
   const schedule = useQuery({ queryKey: ["seo-schedule", clientId], queryFn: () => api<SeoScheduleResponse>(`/clients/${clientId}/seo-schedule`) });
   const posts = useQuery({ queryKey: ["posts", clientId], queryFn: () => api<PostJob[]>(`/clients/${clientId}/posts`) });
   const mock = useMockEnabled();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["posts", clientId] });
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["posts", clientId] });
+    queryClient.invalidateQueries({ queryKey: ["seo-schedule", clientId] });
+  };
   const writeNext = useMutation({
     mutationFn: () => api(`/dev/mock/clients/${clientId}/posts/write-next`, { method: "POST" }),
     onSuccess: () => {
@@ -101,10 +105,18 @@ export default function SeoPostsPage() {
           <span className="hidden sm:inline">Review</span>
         </Button>
       ) : (
-        <Button size="sm" variant="ghost" onClick={() => setOpenId(job.id)} aria-label={`Open post for ${formatDayTime(job.runAt, timezone)}`}>
-          {job.post ? <PenLine aria-hidden /> : <Eye aria-hidden />}
-          <span className="hidden sm:inline">{job.post ? "Edit" : "View"}</span>
-        </Button>
+        <>
+          <PublishNowButton
+            path={`/clients/${clientId}/posts/${job.id}/publish-now`}
+            label={`post for ${formatDayTime(job.runAt, timezone)}`}
+            simulated={schedule.data?.readiness?.simulated ?? false}
+            invalidate={[["posts", clientId], ["seo-schedule", clientId], ["library", clientId]]}
+          />
+          <Button size="sm" variant="ghost" onClick={() => setOpenId(job.id)} aria-label={`Open post for ${formatDayTime(job.runAt, timezone)}`}>
+            {job.post ? <PenLine aria-hidden /> : <Eye aria-hidden />}
+            <span className="hidden sm:inline">{job.post ? "Edit" : "View"}</span>
+          </Button>
+        </>
       ),
     };
   });
@@ -118,6 +130,7 @@ export default function SeoPostsPage() {
     title: job.post ? <span className="line-clamp-2">{job.post.summary}</span> : <span className="text-muted">Not written</span>,
     detail: job.post ? `Button: ${CTA_LABELS[job.post.ctaType] ?? job.post.ctaType}` : undefined,
     error: job.error,
+    labels: job.simulated ? <SimulatedBadge /> : undefined,
     actions: (
       <Button size="sm" variant="ghost" onClick={() => setOpenId(job.id)} aria-label={`Open post from ${formatDayTime(job.runAt, timezone)}`}>
         <Eye aria-hidden />
@@ -130,6 +143,7 @@ export default function SeoPostsPage() {
     <>
       <PageHeader title="SEO Posts" subtitle="AI-written posts for this client's Google Business Profile" />
       <ClientBanner status={client.data.status} />
+      <ReadinessNotice readiness={schedule.data.readiness} clientId={clientId} className="mb-6" />
       <SeoScheduleCard key={clientId} clientId={clientId} data={schedule.data} />
 
       <Tabs defaultValue="upcoming" className="mt-8">

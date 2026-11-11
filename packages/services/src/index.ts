@@ -10,6 +10,8 @@ export * from "./knowledge";
 export * from "./mail";
 export * from "./photos";
 export * from "./posts";
+export * from "./publish-now";
 export * from "./reminders";
 export * from "./reviews";
 export * from "./sync";
+export * from "./worker-status";

@@ -7,6 +7,7 @@ import { PhotoQueue, usePhotoQueue } from "./photo-queue";
 import { ScheduleCard, type ScheduleResponse } from "./schedule-card";
 import { PageHeader } from "@/components/page-header";
 import { SchedulePageSkeleton } from "@/components/schedule/page-parts";
+import { ReadinessNotice } from "@/components/schedule/publishing";
 import { ErrorState } from "@/components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
@@ -38,6 +39,7 @@ export default function PhotosPage() {
     <>
       <PageHeader title="Photos" subtitle="Scheduled photo uploads to this client's Google Business Profile" />
       <ClientBanner status={client.data.status} />
+      <ReadinessNotice readiness={schedule.data.readiness} clientId={clientId} className="mb-6" />
       <ScheduleCard key={clientId} clientId={clientId} data={schedule.data} />
       <Tabs defaultValue="upcoming" className="mt-8">
         <TabsList aria-label="Photo uploads">
@@ -49,7 +51,7 @@ export default function PhotosPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="upcoming">
-          <PhotoQueue clientId={clientId} timezone={timezone} hasSchedule={schedule.data.schedule !== null} />
+          <PhotoQueue clientId={clientId} timezone={timezone} hasSchedule={schedule.data.schedule !== null} simulated={schedule.data.readiness?.simulated ?? false} />
         </TabsContent>
         <TabsContent value="history">
           <PhotoHistory clientId={clientId} timezone={timezone} />

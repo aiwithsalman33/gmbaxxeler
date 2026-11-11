@@ -38,6 +38,9 @@ function errorReason(body: unknown): string | null {
   return details?.details?.find((d) => d.reason)?.reason ?? details?.status ?? null;
 }
 
+/** Shown on jobs and in Settings when Google has granted this Cloud project no Business Profile quota. */
+export const QUOTA_ZERO_MESSAGE = "Google Business Profile API access is not approved for this project";
+
 export function toGbpError(status: number, body: unknown): GbpError {
   const reason = errorReason(body);
   if (status === 401 || (body as { error?: string })?.error === "invalid_grant") {
@@ -45,7 +48,7 @@ export function toGbpError(status: number, body: unknown): GbpError {
   }
   // A limit of 0 is an unapproved project, so retrying can never help.
   if ((status === 429 || status === 403) && /quota_limit_value"?:\s*"?0"?\b/.test(JSON.stringify(body))) {
-    return new GbpError("quota_zero", "Business Profile API access not yet approved for this project");
+    return new GbpError("quota_zero", QUOTA_ZERO_MESSAGE);
   }
   if (status === 429) return new GbpError("rate_limited", "Google rate limit reached");
   if (status === 403) {

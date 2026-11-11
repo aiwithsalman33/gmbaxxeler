@@ -18,6 +18,7 @@ export interface SeoScheduleResponse {
   draftLeadHours: number;
   ctaType: string;
   ctaUrl: string | null;
+  readiness?: import("@/lib/types").Readiness;
 }
 
 const MODES = [

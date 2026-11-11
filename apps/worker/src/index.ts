@@ -1,9 +1,10 @@
 import { writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { parseKey } from "@localpilot/crypto";
 import { createDb } from "@localpilot/db";
 import { createGbpAdapter, sampleDataAllowed } from "@localpilot/gbp";
 import { createMailProvider, Messenger } from "@localpilot/notify";
-import { checkConnections, deliverEmail, dispatchDueJobs, finishConnect, generateDueDrafts, materializeAll, MAIL_QUEUE, materializeAllSeo, pollAllWorkspaces, publishDueReplies, resolveCredentials, sendDueReminders, syncAllClients, syncAllReviews, type Deps, type MailJob } from "@localpilot/services";
+import { checkConnections, deliverEmail, dispatchDueJobs, finishConnect, generateDueDrafts, materializeAll, MAIL_QUEUE, materializeAllSeo, pollAllWorkspaces, publishDueReplies, recordHeartbeat, recordJobRun, resolveCredentials, sendDueReminders, syncAllClients, syncAllReviews, type Deps, type MailJob } from "@localpilot/services";
 import { Storage } from "@localpilot/storage";
 import PgBoss from "pg-boss";
 import pino from "pino";
@@ -99,8 +100,13 @@ for (const [name, job] of Object.entries(JOBS)) {
   await boss.schedule(name, job.cron);
   await boss.work(name, async () => {
     const started = Date.now();
-    await job.run(deps);
-    logger.info({ job: name, ms: Date.now() - started }, "job finished");
+    try {
+      const result = await recordJobRun<unknown>(db, name, () => job.run(deps));
+      logger.info({ job: name, ms: Date.now() - started, result }, "job finished");
+    } catch (error) {
+      logger.error({ job: name, ms: Date.now() - started, err: error instanceof Error ? error.message : String(error) }, "job failed");
+      throw error;
+    }
   });
 }
 
@@ -114,10 +120,18 @@ await boss.work<{ clientId: string }>(CONNECT_QUEUE, async ([job]) => {
   if (job) await finishConnect(deps, job.data.clientId);
 });
 
-const beat = () => writeFileSync(HEARTBEAT_FILE, String(Date.now()));
+// The file feeds Docker's healthcheck; the database row feeds /health/worker and the Settings panel.
+const startedAt = new Date();
+const adapter = deps.gbp.name;
+const beat = () => {
+  writeFileSync(HEARTBEAT_FILE, String(Date.now()));
+  recordHeartbeat(db, { startedAt, hostname: hostname(), adapter }).catch((error: unknown) =>
+    logger.warn({ err: error instanceof Error ? error.message : String(error) }, "heartbeat not saved"),
+  );
+};
 beat();
 const heartbeat = setInterval(beat, HEARTBEAT_MS);
-logger.info({ jobs: Object.keys(JOBS) }, "worker started");
+logger.info({ jobs: Object.keys(JOBS), adapter, ai: deps.aiAdapter, timezone: "UTC (runAt is stored in UTC; schedules convert from each client's timezone)" }, "worker started");
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {

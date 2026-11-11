@@ -602,6 +602,8 @@ model ScheduledJob {
   imageId         String?   @map("image_id") @db.Uuid
   payload         Json      @default("{}")
   manuallyEdited  Boolean   @default(false) @map("manually_edited")
+  /// Published through the mock adapter: nothing reached Google.
+  simulated       Boolean   @default(false)
   idempotencyKey  String    @unique @map("idempotency_key")
   startedAt       DateTime? @map("started_at")
   finishedAt      DateTime? @map("finished_at")
@@ -802,4 +804,29 @@ model MockGbpState {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("mock_gbp_state")
+}
+
+/// One row per worker process name; the worker updates it every 30 seconds.
+model WorkerStatus {
+  id         String   @id
+  startedAt  DateTime @map("started_at")
+  lastBeatAt DateTime @map("last_beat_at")
+  hostname   String?
+  adapter    String?
+
+  @@map("worker_status")
+}
+
+/// The last run of each recurring worker job, for the status panel.
+model WorkerJobRun {
+  name           String    @id
+  lastStartedAt  DateTime? @map("last_started_at")
+  lastFinishedAt DateTime? @map("last_finished_at")
+  lastDurationMs Int?      @map("last_duration_ms")
+  lastError      String?   @map("last_error")
+  lastResult     Json?     @map("last_result")
+  runs           Int       @default(0)
+  failures       Int       @default(0)
+
+  @@map("worker_job_runs")
 }

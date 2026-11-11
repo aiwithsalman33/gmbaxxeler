@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { workerHealth } from "@localpilot/services";
 import { ApiError, type AppContext } from "../context";
 
 const FAILED = ["failed", "dead", "needs_images"] as const;
@@ -11,6 +12,8 @@ export function adminRoutes(ctx: AppContext) {
 
   return async (base: FastifyInstance) => {
     const app = base.withTypeProvider<ZodTypeProvider>();
+
+    app.get("/admin/worker", async () => ({ ...(await workerHealth(db)), adapterInUse: ctx.deps.gbp.name }));
 
     app.get("/admin/failed-jobs", async (request) => {
       const jobs = await db.scheduledJob.findMany({

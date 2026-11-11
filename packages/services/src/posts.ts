@@ -24,7 +24,11 @@ async function reservedSeoImages(deps: Deps, clientId: string): Promise<Set<stri
 
 export async function materializeSeoClient(deps: Deps, clientId: string, now = new Date()): Promise<number> {
   const schedule = await deps.db.seoSchedule.findUnique({ where: { clientId }, include: { client: true } });
-  if (!schedule?.enabled || schedule.client.status !== "connected") return 0;
+  if (!schedule?.enabled || schedule.client.status !== "connected") {
+    const reason = !schedule ? "no_schedule" : !schedule.enabled ? "schedule_off" : `client_${schedule.client.status}`;
+    deps.logger.info({ stage: "materialize.skipped", type: "seo_post", clientId, reason }, "post jobs not created");
+    return 0;
+  }
 
   const slots = expandSchedule(schedule, now);
   const keyFor = (slot: (typeof slots)[number]) => `${clientId}:seo:${schedule.id}:${slot.localKey}:${slot.index}`;
@@ -47,6 +51,7 @@ export async function materializeSeoClient(deps: Deps, clientId: string, now = n
     })),
     skipDuplicates: true,
   });
+  deps.logger.info({ stage: "materialized", type: "seo_post", clientId, created: count, timezone: schedule.timezone, firstRunAt: fresh[0]?.runAt }, "post jobs created");
   return count;
 }
 
@@ -182,6 +187,7 @@ export async function processPostJob(deps: Deps, jobId: string, now = new Date()
   const job = await deps.db.scheduledJob.findUniqueOrThrow({ where: { id: jobId }, include: { post: true, image: true } });
   const client = await deps.db.client.findUniqueOrThrow({ where: { id: job.clientId }, include: { connection: true } });
   const post = job.post!;
+  deps.logger.info({ stage: "publishing", type: "seo_post", jobId, clientId: job.clientId, runAt: job.runAt, attempt: job.attempts + 1, adapter: deps.gbp.name }, "post publishing");
 
   if (client.status === "paused") {
     await deps.db.scheduledJob.update({ where: { id: job.id }, data: { status: "skipped", error: "Client is paused", imageId: null, finishedAt: now } });
@@ -207,12 +213,14 @@ export async function processPostJob(deps: Deps, jobId: string, now = new Date()
       ctaUrl: post.ctaType === "CALL" ? null : post.ctaUrl,
       imageUrl: image.publicUrl,
     });
+    const simulated = deps.gbp.name === "mock";
     await deps.db.$transaction([
-      deps.db.scheduledJob.update({ where: { id: job.id }, data: { status: "published", error: null, finishedAt: new Date() } }),
+      deps.db.scheduledJob.update({ where: { id: job.id }, data: { status: "published", error: null, finishedAt: new Date(), simulated } }),
       deps.db.post.update({ where: { id: post.id }, data: { gbpPostName: published.name } }),
       deps.db.libraryImage.update({ where: { id: image.id }, data: { usageCount: { increment: 1 }, lastUsedAt: new Date() } }),
     ]);
-    await writeLog(deps, job, "post.publish", { status: "published", resource: published.name });
+    await writeLog(deps, job, "post.publish", { status: "published", resource: published.name, meta: simulated ? { simulated: true } : {} });
+    deps.logger.info({ stage: "published", type: "seo_post", jobId, clientId: job.clientId, simulated, resource: published.name }, "post published");
   } catch (error) {
     await failJob(deps, job, client, image, error, now, { action: "post.publish", label: "Post" });
   }

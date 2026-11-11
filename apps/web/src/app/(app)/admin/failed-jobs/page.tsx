@@ -5,6 +5,7 @@ import { AlertOctagon, CheckCircle2, FileText, ImageIcon, RefreshCw, RotateCcw, 
 import Link from "next/link";
 import { JobStatusBadge } from "@/components/job-status-badge";
 import { PageHeader } from "@/components/page-header";
+import { WorkerStatusStrip } from "@/components/worker-status";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -89,6 +90,7 @@ export default function FailedJobsPage() {
           </Button>
         }
       />
+      <WorkerStatusStrip className="mb-6" />
       {jobs.isPending && <TableSkeleton />}
       {jobs.isError && <ErrorState error={jobs.error} onRetry={() => jobs.refetch()} />}
       {jobs.isSuccess && count === 0 && (

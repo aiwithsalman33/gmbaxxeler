@@ -5,6 +5,7 @@ import { AlertOctagon, ArrowRight, Building2, CheckCircle2, Circle, Globe, UserR
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { DemoDataSettings } from "./demo-data-settings";
+import { WorkerStatusCard } from "@/components/worker-status";
 import { ErrorState, Notice } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,8 +109,8 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       <WorkspaceCard />
-      {/* System health. A "Worker status" card goes here, above Failed jobs (or beside it in a lg:grid-cols-2 row). */}
       <section aria-label="System health" className="space-y-6">
+        <WorkerStatusCard />
         <FailedJobsCard />
       </section>
       <DemoDataSettings />

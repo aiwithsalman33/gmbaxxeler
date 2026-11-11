@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, History, RotateCcw } from "lucide-react";
+import { SimulatedBadge } from "@/components/schedule/publishing";
 import { ScheduleHistory, type HistoryRow } from "@/components/schedule/schedule-history";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,13 @@ export function PhotoHistory({ clientId, timezone }: { clientId: string; timezon
         </>
       ),
       error: job.error,
-      labels: job.category ? <Badge>{CATEGORY_LABELS[job.category]}</Badge> : undefined,
+      labels:
+        job.category || job.simulated ? (
+          <>
+            {job.simulated && <SimulatedBadge />}
+            {job.category && <Badge>{CATEGORY_LABELS[job.category]}</Badge>}
+          </>
+        ) : undefined,
       actions: (
         <>
           {job.image && (
