@@ -73,7 +73,8 @@ export function Notice({ tone = "info", icon: Icon, title, children, action, cla
   return (
     <div role={tone === "bad" ? "alert" : "status"} className={cn("flex flex-wrap items-start gap-3 rounded-xl border px-4 py-3 text-sm", tones[tone], className)}>
       {Icon && <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />}
-      <div className="min-w-0 flex-1">
+      {/* basis: on narrow screens the action wraps below the text instead of squeezing it. */}
+      <div className="min-w-0 flex-1 basis-56">
         {title && <p className="font-semibold">{title}</p>}
         {children && <div className={cn(title && "mt-0.5 opacity-90")}>{children}</div>}
       </div>

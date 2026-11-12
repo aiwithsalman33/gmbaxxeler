@@ -24,6 +24,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_MAX_QPM: z.coerce.number().int().min(1).default(240),
   AGENCY_GOOGLE_EMAIL: z.string().optional(),
+  AUTO_IMPORT_LOCATIONS: z.string().default("true").transform((value) => value !== "false"),
   ENABLE_CLIENT_OAUTH_LINKS: z.string().default("false").transform((value) => value === "true"),
   AUTH_PASSWORD_ENABLED: z.string().default("true").transform((value) => value !== "false"),
   MINIO_ENDPOINT: z.string().url(),

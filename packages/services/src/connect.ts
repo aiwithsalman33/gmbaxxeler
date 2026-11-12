@@ -70,6 +70,10 @@ export async function scanLocations(deps: Deps, connection: GoogleConnection): P
       deps.logger.warn({ connectionId: connection.id }, "business profile api quota is zero");
       await recordApiAccess(deps, "not_approved");
     }
+    // Shown on the Clients page and in Settings > Google, so a failed scan is never silent.
+    if (error instanceof GbpError) {
+      await deps.db.googleConnection.update({ where: { id: connection.id }, data: { lastError: error.message } }).catch(() => undefined);
+    }
     throw error;
   }
 }
@@ -183,7 +187,7 @@ export async function importLocations(
     const data = attachData(connection, location, "import");
     const client = previous
       ? await deps.db.client.update({ where: { id: previous.id }, data })
-      : await deps.db.client.create({ data: { workspaceId, name: location.title, address: location.address, ...data } });
+      : await deps.db.client.create({ data: { workspaceId, name: location.title, address: location.address, contactPhone: location.phone, ...data } });
     await deps.enqueueConnect(client.id);
     imported.push(client);
   }

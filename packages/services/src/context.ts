@@ -29,6 +29,8 @@ export interface Deps {
   googleEnv: Partial<GoogleCredentials>;
   googleHttp: typeof fetch;
   agencyEmail: string | null;
+  /** Import every business the agency account manages as a client, without picking each. */
+  autoImport: boolean;
 }
 
 export const PENDING_STATUSES = ["invited", "waiting_for_access"] as const;

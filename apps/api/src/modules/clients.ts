@@ -2,6 +2,7 @@ import { addClientSchema, importClientsSchema, locationRefSchema, matchInvitatio
 import { randomToken, sha256 } from "@localpilot/crypto";
 import type { Client } from "@localpilot/db";
 import {
+  acceptInvitationAsNew,
   agencyConnection,
   autoConnectClient,
   connectToLocation,
@@ -13,6 +14,7 @@ import {
   listUnattachedLocations,
   matchInvitationManually,
   pollInvitations,
+  syncManagedLocations,
   queueEmail,
   whatsappLink,
   isDemoClient,
@@ -28,6 +30,9 @@ import { redirectUri } from "./google";
 const idParams = z.object({ id: z.string().uuid() });
 const SIGN_IN_TTL_MS = 15 * 60_000;
 
+/** A per-route limit. Test runs call routes far faster than people, so they use the global (raised) limit. */
+const perMinute = (ctx: AppContext, max: number) => ({ rateLimit: { max: ctx.env.APP_ENV === "test" ? ctx.env.RATE_LIMIT_MAX : max, timeWindow: "1 minute" } });
+
 export function clientRoutes(ctx: AppContext) {
   const { db, deps } = ctx;
 
@@ -36,6 +41,20 @@ export function clientRoutes(ctx: AppContext) {
     const agencyEmail = connection?.googleAccountEmail ?? null;
     const { subject, text } = guideMessage({ businessName: client.name, agencyEmail });
     return { subject, text, agencyEmail, whatsappUrl: whatsappLink(client.contactPhone, text), channels: deps.messenger.available() };
+  }
+
+  /**
+   * The agency account, or a clear reason there isn't one. An account that doesn't match
+   * AGENCY_GOOGLE_EMAIL is inactive until confirmed; answering with an empty list hid that.
+   */
+  async function requireAgency(workspaceId: string) {
+    const connection = await agencyConnection(deps, workspaceId);
+    if (connection) return connection;
+    const unconfirmed = await db.googleConnection.findFirst({ where: { workspaceId, source: "agency", status: "active" } });
+    if (unconfirmed) {
+      throw new ApiError(409, "agency_unconfirmed", `Confirm ${unconfirmed.googleAccountEmail} as your agency account first. It differs from AGENCY_GOOGLE_EMAIL, so it stays inactive until confirmed.`);
+    }
+    throw new ApiError(409, "no_connection", "Connect the agency Google account first");
   }
 
   async function scopedInvitation(request: FastifyRequest, id: string) {
@@ -72,8 +91,12 @@ export function clientRoutes(ctx: AppContext) {
       return importLocations(deps, request.auth.workspaceId, { refs: request.body.locations, all: request.body.all });
     });
 
-    app.post("/clients/check-invitations", { config: { rateLimit: { max: 12, timeWindow: "1 minute" } } }, async (request) => {
-      return pollInvitations(deps, request.auth.workspaceId);
+    // "Check now": invitations, waiting clients, and any business the agency account manages that isn't a client yet.
+    app.post("/clients/check-invitations", { config: perMinute(ctx, 12) }, async (request) => {
+      await requireAgency(request.auth.workspaceId);
+      const summary = await pollInvitations(deps, request.auth.workspaceId);
+      const { connected, imported } = await syncManagedLocations(deps, request.auth.workspaceId);
+      return { ...summary, connected: summary.connected + connected, imported };
     });
 
     app.get("/clients/:id", { schema: { params: idParams } }, async (request) => {
@@ -148,7 +171,7 @@ export function clientRoutes(ctx: AppContext) {
     });
 
     // Looks for the business in every connected Google account and in pending Manager invitations.
-    app.post("/clients/:id/auto-connect", { schema: { params: idParams }, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request) => {
+    app.post("/clients/:id/auto-connect", { schema: { params: idParams }, config: perMinute(ctx, 30) }, async (request) => {
       const client = await scopedClient(ctx, request, request.params.id);
       return autoConnectClient(deps, client.id);
     });
@@ -171,8 +194,7 @@ export function clientRoutes(ctx: AppContext) {
     });
 
     app.get("/locations", async (request) => {
-      const connection = await agencyConnection(deps, request.auth.workspaceId);
-      if (!connection) return [];
+      const connection = await requireAgency(request.auth.workspaceId);
       const [locations, clients] = await Promise.all([
         listAccessibleLocations(deps, connection),
         db.client.findMany({ where: { workspaceId: request.auth.workspaceId, gbpLocationId: { not: null }, status: { not: "removed" } }, select: { id: true, gbpLocationId: true } }),
@@ -182,6 +204,7 @@ export function clientRoutes(ctx: AppContext) {
     });
 
     app.get("/locations/unattached", async (request) => {
+      await requireAgency(request.auth.workspaceId);
       return listUnattachedLocations(deps, request.auth.workspaceId);
     });
 
@@ -196,6 +219,12 @@ export function clientRoutes(ctx: AppContext) {
       const invitation = await scopedInvitation(request, request.params.id);
       const client = await scopedClient(ctx, request, request.body.clientId);
       return matchInvitationManually(deps, invitation, client);
+    });
+
+    app.post("/invitations/:id/accept-new", { schema: { params: idParams } }, async (request) => {
+      const invitation = await scopedInvitation(request, request.params.id);
+      await acceptInvitationAsNew(deps, invitation);
+      return syncManagedLocations(deps, invitation.workspaceId);
     });
 
     app.post("/invitations/:id/decline", { schema: { params: idParams } }, async (request) => {

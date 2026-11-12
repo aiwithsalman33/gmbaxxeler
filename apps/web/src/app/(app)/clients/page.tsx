@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, CloudDownload, Inbox, Link2, Plus, RefreshCw, Search, Send, ShieldCheck, Users, Wand2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CloudDownload, Inbox, Link2, Plus, RefreshCw, Search, Send, ShieldCheck, Users, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -10,7 +10,7 @@ import { AddClientDialog, GuideDialog, ImportDialog } from "./client-dialogs";
 import { ConnectClientDialog } from "./connect-dialog";
 import { useClients } from "@/components/client-switcher";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState, ErrorState } from "@/components/states";
+import { EmptyState, ErrorState, Notice } from "@/components/states";
 import { CLIENT_STATUS } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { Input, Select } from "@/components/ui/input";
 import { LoadingBlock, Skeleton } from "@/components/ui/skeleton";
 import { toast, toastError } from "@/components/ui/toast";
 import { api } from "@/lib/api";
-import type { Client, ClientStatus, Connection, Invitation } from "@/lib/types";
+import type { Client, ClientStatus, Connection, GoogleStatus, Invitation, Me } from "@/lib/types";
 
 const PENDING = ["invited", "waiting_for_access"];
 const SEARCH_THRESHOLD = 6;
@@ -78,7 +78,20 @@ export default function ClientsPage() {
   const queryClient = useQueryClient();
   const clients = useClients();
   const connections = useQuery({ queryKey: ["connections"], queryFn: () => api<Connection[]>("/google/connections") });
-  const agency = connections.data?.find((connection) => connection.source === "agency" && connection.status === "active");
+  // "linked" is any agency account; "agency" is one the server will actually use. An account that
+  // differs from AGENCY_GOOGLE_EMAIL stays inactive until an owner confirms it.
+  const linked = connections.data?.find((connection) => connection.source === "agency" && connection.status === "active");
+  const agency = linked && !linked.needsConfirmation ? linked : undefined;
+  const googleStatus = useQuery({ queryKey: ["google-status"], queryFn: () => api<GoogleStatus>("/settings/google/status") });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me") });
+  const confirmAccount = useMutation({
+    mutationFn: (id: string) => api(`/google/connections/${id}/confirm-mismatch`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Agency account confirmed", { description: "Its businesses are being added as clients." });
+      refreshAll();
+    },
+    onError: (error) => toastError(error),
+  });
   const invitations = useQuery({ queryKey: ["invitations"], queryFn: () => api<Invitation[]>("/invitations") });
   const mock = useQuery({
     queryKey: ["mock"],
@@ -119,10 +132,10 @@ export default function ClientsPage() {
 
   const refreshAll = () => queryClient.invalidateQueries();
   const check = useMutation({
-    mutationFn: () => api<{ seen: number; accepted: number; needsReview: number; connected: number }>("/clients/check-invitations", { method: "POST" }),
+    mutationFn: () => api<{ seen: number; accepted: number; needsReview: number; connected: number; imported: number }>("/clients/check-invitations", { method: "POST" }),
     onSuccess: (summary) => {
-      toast.success(`Found ${summary.seen} ${summary.seen === 1 ? "invitation" : "invitations"}`, {
-        description: `${summary.accepted} accepted, ${summary.needsReview} to review, ${summary.connected} connected.`,
+      toast.success(summary.imported ? `Added ${summary.imported} ${summary.imported === 1 ? "business" : "businesses"} from Google` : "Google checked", {
+        description: `${summary.seen} ${summary.seen === 1 ? "invitation" : "invitations"}: ${summary.accepted} accepted, ${summary.needsReview} to review. ${summary.connected} waiting ${summary.connected === 1 ? "client" : "clients"} connected.`,
       });
       refreshAll();
     },
@@ -142,6 +155,16 @@ export default function ClientsPage() {
     mutationFn: ({ id, clientId }: { id: string; clientId: string }) => api(`/invitations/${id}/match`, { method: "POST", body: { clientId } }),
     onSuccess: () => {
       toast.success("Invitation accepted");
+      refreshAll();
+    },
+    onError: (error) => toastError(error),
+  });
+  const acceptNew = useMutation({
+    mutationFn: (id: string) => api<{ connected: number; imported: number }>(`/invitations/${id}/accept-new`, { method: "POST" }),
+    onSuccess: (result) => {
+      toast.success("Invitation accepted", {
+        description: result.imported ? `Added ${result.imported} ${result.imported === 1 ? "business" : "businesses"} as clients.` : "It appears in your clients once Google lists it, usually within a few minutes.",
+      });
       refreshAll();
     },
     onError: (error) => toastError(error),
@@ -180,14 +203,49 @@ export default function ClientsPage() {
     onSimulate: mock.data?.enabled ? (client) => simulate.mutate(client.id) : undefined,
   };
 
+  const owner = me.data?.role === "owner";
+  const googleHealth = linked?.needsConfirmation ? (
+    <Notice
+      tone="warn"
+      icon={AlertTriangle}
+      title={`Confirm ${linked.googleAccountEmail} as your agency account`}
+      className="mb-6"
+      action={
+        owner ? (
+          <Button size="sm" loading={confirmAccount.isPending} onClick={() => confirmAccount.mutate(linked.id)}>
+            Use this account
+          </Button>
+        ) : undefined
+      }
+    >
+      This app was set up for {googleStatus.data?.expectedAgencyEmail ?? "a different Gmail"} (AGENCY_GOOGLE_EMAIL). Until this account is confirmed, its businesses can&apos;t be listed, imported or
+      checked{owner ? ". Confirming adds every business it manages as a client." : ". Ask the workspace owner to confirm it."}
+    </Notice>
+  ) : agency && googleStatus.data?.apiAccess === "not_approved" ? (
+    <Notice tone="bad" icon={AlertTriangle} title="Google hasn't approved Business Profile API access yet" className="mb-6" action={<Button asChild size="sm" variant="secondary"><Link href="/settings/google">Settings &gt; Google</Link></Button>}>
+      Your Google Cloud project has zero Business Profile quota, so no businesses can be listed and nothing can be posted. Apply for access in Google Cloud; this clears by itself once approved.
+    </Notice>
+  ) : agency?.lastError ? (
+    <Notice tone="bad" icon={AlertTriangle} title="Google returned an error" className="mb-6" action={<Button size="sm" variant="secondary" loading={check.isPending} onClick={() => check.mutate()}>Try again</Button>}>
+      {agency.lastError}
+    </Notice>
+  ) : null;
+
   const header = (
     <PageHeader
       title="Clients"
       subtitle={
-        agency ? (
+        linked ? (
           <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-            <ShieldCheck className="size-4 text-good" aria-hidden />
-            Agency account <span className="font-medium break-all text-ink-soft">{agency.googleAccountEmail}</span>
+            {agency ? <ShieldCheck className="size-4 text-good" aria-hidden /> : <AlertTriangle className="size-4 text-warn" aria-hidden />}
+            Agency account <span className="font-medium break-all text-ink-soft">{linked.googleAccountEmail}</span>
+            {agency ? (
+              <span className="text-subtle">
+                · {agency.accountsCount} Google {agency.accountsCount === 1 ? "account" : "accounts"}, {agency.locationsCount} {agency.locationsCount === 1 ? "profile" : "profiles"}
+              </span>
+            ) : (
+              <Badge tone="warn">Needs confirming</Badge>
+            )}
           </span>
         ) : (
           "Every business you manage, and the ones still waiting to give you access."
@@ -201,7 +259,7 @@ export default function ClientsPage() {
               Simulate invitations
             </Button>
           )}
-          <Button variant="secondary" loading={check.isPending} disabled={!agency} title={agency ? "Look for new Manager invitations" : "Connect Google first"} onClick={() => check.mutate()}>
+          <Button variant="secondary" loading={check.isPending} disabled={!agency} title={agency ? "Check Google for invitations and businesses not added yet" : linked ? "Confirm the agency account first" : "Connect Google first"} onClick={() => check.mutate()}>
             {!check.isPending && <RefreshCw aria-hidden />}
             Check now
           </Button>
@@ -279,10 +337,11 @@ export default function ClientsPage() {
   const statusesInUse = [...new Set(others.map((client) => client.status))];
 
   // No agency account and nothing yet: one prominent connect card is the whole page.
-  if (all.length === 0 && !agency) {
+  if (all.length === 0 && !linked) {
     return (
       <>
         {header}
+        {googleHealth}
         <EmptyState
           icon={Link2}
           title="Connect your Google account to import your clients"
@@ -311,7 +370,9 @@ export default function ClientsPage() {
     <>
       {header}
 
-      {!agency && (
+      {googleHealth}
+
+      {!linked && (
         <Card className="mb-6 flex flex-wrap items-center gap-4 border-primary-200 bg-gradient-to-r from-primary-50 to-surface">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-sm shadow-primary/30">
             <Link2 className="size-5" aria-hidden />
@@ -327,11 +388,15 @@ export default function ClientsPage() {
       )}
 
       <div className="mb-8 grid gap-4 md:grid-cols-2">
-        <ActionCard icon={CloudDownload} title="Import from Google" body="Bring in businesses your agency Google account already manages. Pick the ones you want.">
+        <ActionCard icon={CloudDownload} title="Import from Google" body="Every business your agency Google account manages is added automatically. Pick or re-add specific ones here.">
           {agency ? (
             <Button variant="secondary" onClick={() => setImporting(true)}>
               Choose locations
               <ArrowRight aria-hidden />
+            </Button>
+          ) : linked ? (
+            <Button variant="secondary" disabled>
+              Confirm the account above first
             </Button>
           ) : (
             <Button asChild variant="secondary">
@@ -376,7 +441,7 @@ export default function ClientsPage() {
                   Unmatched invitations <Badge tone="warn">{unmatched.length}</Badge>
                 </span>
               }
-              description="These weren't a confident match, so they weren't accepted. Choose a client and accept, or decline."
+              description="These weren't a confident match, so they weren't accepted. Accept one for a waiting client, accept it as a new client, or decline."
             />
             <ul className="divide-y divide-line">
               {unmatched.map((invitation) => {
@@ -388,28 +453,36 @@ export default function ClientsPage() {
                       <p className="truncate text-xs text-muted">{invitation.matchReason ?? invitation.address ?? "No details from Google"}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
-                        <Select
-                          aria-label={`Client for ${invitation.locationName}`}
-                          className="h-8 text-xs"
-                          value={chosen}
-                          onChange={(event) => setMatchTo({ ...matchTo, [invitation.id]: event.target.value })}
-                        >
-                          <option value="">Choose a client</option>
-                          {pending.map((client) => (
-                            <option key={client.id} value={client.id}>
-                              {client.name}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
-                      <Button
-                        size="sm"
-                        disabled={!chosen || matchInvitation.isPending}
-                        loading={matchInvitation.isPending && matchInvitation.variables?.id === invitation.id}
-                        onClick={() => matchInvitation.mutate({ id: invitation.id, clientId: chosen })}
-                      >
-                        Accept
+                      {/* Matching to a waiting client only makes sense when there is one. */}
+                      {pending.length > 0 && (
+                        <>
+                          <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
+                            <Select
+                              aria-label={`Client for ${invitation.locationName}`}
+                              className="h-8 text-xs"
+                              value={chosen}
+                              onChange={(event) => setMatchTo({ ...matchTo, [invitation.id]: event.target.value })}
+                            >
+                              <option value="">Choose a client</option>
+                              {pending.map((client) => (
+                                <option key={client.id} value={client.id}>
+                                  {client.name}
+                                </option>
+                              ))}
+                            </Select>
+                          </div>
+                          <Button
+                            size="sm"
+                            disabled={!chosen || matchInvitation.isPending}
+                            loading={matchInvitation.isPending && matchInvitation.variables?.id === invitation.id}
+                            onClick={() => matchInvitation.mutate({ id: invitation.id, clientId: chosen })}
+                          >
+                            Accept
+                          </Button>
+                        </>
+                      )}
+                      <Button size="sm" variant="secondary" loading={acceptNew.isPending && acceptNew.variables === invitation.id} onClick={() => acceptNew.mutate(invitation.id)}>
+                        Accept as new client
                       </Button>
                       <Button size="sm" variant="danger" loading={decline.isPending && decline.variables === invitation.id} onClick={() => decline.mutate(invitation.id)}>
                         Decline
