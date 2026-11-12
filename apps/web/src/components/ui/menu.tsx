@@ -4,7 +4,14 @@ import * as Radix from "@radix-ui/react-dropdown-menu";
 import { cloneElement, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export const Menu = Radix.Root;
+/**
+ * Not modal: a modal menu sets pointer-events:none on <body>, and when an item opens a dialog
+ * (Remove client, Move, Delete…) Radix can leave it there after both close, so the whole page
+ * stops responding to the mouse until a reload.
+ */
+export function Menu({ modal = false, ...props }: ComponentProps<typeof Radix.Root>) {
+  return <Radix.Root modal={modal} {...props} />;
+}
 export const MenuTrigger = Radix.Trigger;
 
 /** Dropdown menu panel. Arrow keys, Home/End and type-ahead work out of the box. */
