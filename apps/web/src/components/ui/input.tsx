@@ -3,7 +3,8 @@ import { useId, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactNo
 import { cn } from "@/lib/utils";
 
 export const fieldStyles =
-  "w-full rounded-control border border-line-strong bg-white px-3 text-sm text-ink transition-[border-color,box-shadow] placeholder:text-subtle hover:border-primary-300 focus:border-primary focus:shadow-focus focus:outline-none disabled:cursor-not-allowed disabled:bg-lavender disabled:text-muted aria-[invalid=true]:border-bad";
+  // 16px on phones: iOS Safari zooms the page into any smaller field on focus.
+  "w-full rounded-control border border-line-strong bg-surface px-3 text-base text-ink sm:text-sm transition-[border-color,box-shadow] placeholder:text-subtle hover:border-primary-300 focus:border-primary focus:shadow-focus focus:outline-none disabled:cursor-not-allowed disabled:bg-lavender disabled:text-muted aria-[invalid=true]:border-bad";
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(fieldStyles, "h-10", className)} {...props} />;
@@ -102,7 +103,7 @@ export function Switch({
           checked ? "bg-primary" : "bg-line-strong",
         )}
       >
-        <span className={cn("absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform", checked && "translate-x-4")} />
+        <span className={cn("absolute top-0.5 left-0.5 size-5 rounded-full bg-surface shadow transition-transform", checked && "translate-x-4")} />
       </button>
       <label htmlFor={id} className="cursor-pointer">
         <span className="block text-sm font-medium text-ink">{label}</span>

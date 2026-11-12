@@ -155,7 +155,7 @@ export function PostDialog({ clientId, job, timezone, onClose, onChanged }: { cl
             </Notice>
           )}
 
-          <div className="grid gap-5 sm:grid-cols-[13rem_1fr]">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-[13rem_1fr]">
             <figure className="space-y-1.5">
               {job.image ? (
                 <img src={job.image.publicUrl} alt={job.image.originalName} className="h-40 w-full rounded-xl object-cover ring-1 ring-line sm:aspect-square sm:h-auto" />

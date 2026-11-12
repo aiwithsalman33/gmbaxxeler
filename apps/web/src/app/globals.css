@@ -1,49 +1,75 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+@import "@fontsource/poppins/700.css";
 
 /*
- * LocalPilot design tokens. Light purple + white: lavender page, white cards, violet primary.
- * Every screen uses these names (bg-primary, text-muted, border-line, shadow-card, rounded-card…),
- * never raw hex values, so the theme stays consistent.
+ * AX Grow design tokens, taken from the logo: violet #8c46f3 -> indigo #715ffb -> blue #439ffd
+ * on near-black. Every screen uses these names (bg-surface, text-muted, border-line, bg-primary…),
+ * never raw hex values, so light and dark themes both come from this file alone.
  */
 @theme {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Poppins", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
 
-  /* Violet scale, anchored on #7C3AED (600). */
-  --color-primary-50: #f5f3ff;
-  --color-primary-100: #ede9fe;
-  --color-primary-200: #ddd6fe;
-  --color-primary-300: #c4b5fd;
-  --color-primary-400: #a78bfa;
-  --color-primary-500: #8b5cf6;
-  --color-primary-600: #7c3aed;
-  --color-primary-700: #6d28d9;
-  --color-primary-800: #5b21b6;
-  --color-primary-900: #4c1d95;
+  /* Indigo-violet scale, anchored on #6246ea (600). Dark mode remaps it below. */
+  --color-primary-50: #f3f1ff;
+  --color-primary-100: #e8e4ff;
+  --color-primary-200: #d4ccff;
+  --color-primary-300: #b5a8ff;
+  --color-primary-400: #9580fb;
+  --color-primary-500: #7a5ff6;
+  --color-primary-600: #6246ea;
+  --color-primary-700: #5235cf;
+  --color-primary-800: #432ba8;
+  --color-primary-900: #382886;
 
   /* Semantic aliases used across the app. */
-  --color-primary: #7c3aed;
-  --color-primary-dark: #6d28d9;
-  --color-primary-soft: #ede9fe;
-  --color-lavender: #f5f3ff;
-  --color-surface: #ffffff;
-  --color-ink: #1e1b2e;
-  --color-ink-soft: #3f3a55;
-  --color-muted: #6b6880;
-  --color-subtle: #9a96ad;
-  --color-line: #ebe7f7;
-  --color-line-strong: #d9d3ee;
+  --color-primary: #6246ea;
+  --color-primary-dark: #5235cf;
+  --color-primary-soft: #e8e4ff;
+  --color-accent: #3d8ffb;
+  --color-violet: #8c46f3;
 
+  /* Page, panels and text. "lavender" is the page background. */
+  --color-lavender: #f5f4fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #f9f8fe;
+  --color-ink: #16142b;
+  --color-ink-soft: #3a3756;
+  --color-muted: #66637f;
+  --color-subtle: #9794b0;
+  --color-line: #e8e6f3;
+  --color-line-strong: #d6d2ea;
+
+  /* The sidebar stays dark in both themes, like the logo. */
+  --color-sidebar: #0d0c1d;
+  --color-sidebar-2: #16152b;
+  --color-sidebar-ink: #c8c6e2;
+  --color-sidebar-muted: #7f7c9e;
+  --color-sidebar-line: #232140;
+
+  /* Status: base, soft fill, border and text on the soft fill. */
   --color-good: #15803d;
   --color-good-soft: #ecfdf3;
+  --color-good-line: #bbf7d0;
+  --color-good-ink: #14532d;
   --color-warn: #b45309;
   --color-warn-soft: #fffbeb;
+  --color-warn-line: #fde68a;
+  --color-warn-ink: #78350f;
   --color-bad: #b91c1c;
   --color-bad-soft: #fef2f2;
+  --color-bad-line: #fecaca;
+  --color-bad-ink: #7f1d1d;
   --color-info: #1d4ed8;
   --color-info-soft: #eff6ff;
+  --color-info-line: #bfdbfe;
+  --color-neutral-soft: #f1f0f6;
+  --color-neutral-line: #e2e0ec;
+  --color-star: #f59e0b;
 
-  /* Type scale: 12 / 13 / 14 / 16 / 18 / 22 / 28. */
+  /* Type scale: 11 / 12 / 14 / 16 / 18 / 22 / 28. Poppins runs wide, so line heights are generous. */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
   --text-xs: 0.75rem;
@@ -59,9 +85,9 @@
   --text-2xl: 1.75rem;
   --text-2xl--line-height: 2.25rem;
 
-  --shadow-card: 0 1px 2px rgb(76 29 149 / 0.04), 0 4px 16px rgb(76 29 149 / 0.06);
-  --shadow-raised: 0 2px 4px rgb(76 29 149 / 0.06), 0 12px 32px rgb(76 29 149 / 0.12);
-  --shadow-focus: 0 0 0 3px rgb(124 58 237 / 0.22);
+  --shadow-card: 0 1px 2px rgb(22 20 43 / 0.04), 0 4px 18px rgb(56 40 134 / 0.06);
+  --shadow-raised: 0 2px 6px rgb(22 20 43 / 0.06), 0 16px 40px rgb(56 40 134 / 0.14);
+  --shadow-focus: 0 0 0 3px rgb(98 70 234 / 0.25);
 
   --radius-card: 1rem;
   --radius-control: 0.75rem;
@@ -94,16 +120,107 @@
   }
 }
 
+/* `dark:` utilities follow the theme switch, not only the system setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * Dark theme. The inline script in layout.tsx always resolves the saved choice ("system" included)
+ * to data-theme="light" or "dark" on <html> before the first paint.
+ * The primary scale is inverted so "primary-50" stays the quiet tint and "primary-700" the strong text.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-primary-50: #1a1736;
+  --color-primary-100: #221e48;
+  --color-primary-200: #2e2862;
+  --color-primary-300: #463c95;
+  --color-primary-400: #6a5ae6;
+  --color-primary-500: #8270fa;
+  --color-primary-600: #9384ff;
+  --color-primary-700: #ab9fff;
+  --color-primary-800: #c4bbff;
+  --color-primary-900: #dfd9ff;
+  --color-primary: #7462f5;
+  --color-primary-dark: #8a7bff;
+  --color-primary-soft: #221e48;
+  --color-accent: #5aa7ff;
+
+  --color-lavender: #09081a;
+  --color-surface: #121127;
+  --color-surface-2: #17162f;
+  --color-ink: #eeedf9;
+  --color-ink-soft: #d0cee6;
+  --color-muted: #a19ebe;
+  --color-subtle: #75728f;
+  --color-line: #242242;
+  --color-line-strong: #34315a;
+
+  --color-sidebar: #07061a;
+  --color-sidebar-2: #12112a;
+  --color-sidebar-line: #1d1b38;
+
+  --color-good: #4ade80;
+  --color-good-soft: #0d2a1b;
+  --color-good-line: #1d4d33;
+  --color-good-ink: #bbf7d0;
+  --color-warn: #fbbf24;
+  --color-warn-soft: #2a1f0b;
+  --color-warn-line: #5c4415;
+  --color-warn-ink: #fde68a;
+  --color-bad: #f87171;
+  --color-bad-soft: #2c1216;
+  --color-bad-line: #5e2228;
+  --color-bad-ink: #fecaca;
+  --color-info: #60a5fa;
+  --color-info-soft: #0f1f3a;
+  --color-info-line: #1e3a66;
+  --color-neutral-soft: #1c1b33;
+  --color-neutral-line: #2c2a4a;
+
+  /* Avatar tints use a few palette shades; give them dark equivalents. */
+  --color-pink-100: #3a1430;
+  --color-pink-800: #f9a8d4;
+  --color-sky-100: #0c2a3d;
+  --color-sky-800: #7dd3fc;
+  --color-emerald-100: #0b2e24;
+  --color-emerald-800: #6ee7b7;
+  --color-amber-100: #2e220c;
+  --color-amber-800: #fcd34d;
+  --color-indigo-100: #1c1d4a;
+  --color-indigo-800: #a5b4fc;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.25);
+  --shadow-raised: 0 2px 6px rgb(0 0 0 / 0.5), 0 18px 44px rgb(0 0 0 / 0.45);
+  --shadow-focus: 0 0 0 3px rgb(130 112 250 / 0.4);
+}
+
+/* Logo gradient, for the wordmark and accents. */
+@utility text-brand {
+  background-image: linear-gradient(100deg, var(--color-violet) 0%, #6a5cf8 45%, var(--color-accent) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Darker stops than the logo so white button text stays readable. */
+@utility bg-brand-button {
+  background-image: linear-gradient(120deg, #7a3ff0 0%, #5a4cef 55%, #3a6ff0 100%);
+}
+
+@utility bg-brand {
+  background-image: linear-gradient(120deg, var(--color-violet) 0%, #6a5cf8 50%, var(--color-accent) 100%);
+}
+
 html {
   /* Reserve the scrollbar so pages don't shift sideways when content grows. */
   scrollbar-gutter: stable;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--color-lavender);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
@@ -111,6 +228,10 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-primary) 25%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

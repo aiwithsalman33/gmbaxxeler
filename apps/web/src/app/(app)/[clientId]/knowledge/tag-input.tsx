@@ -50,7 +50,7 @@ export function TagInput({
   return (
     <div
       className={cn(
-        "flex min-h-10 w-full cursor-text flex-wrap items-center gap-1.5 rounded-control border border-line-strong bg-white px-2 py-1.5 transition-[border-color,box-shadow] hover:border-primary-300 focus-within:border-primary focus-within:shadow-focus",
+        "flex min-h-10 w-full cursor-text flex-wrap items-center gap-1.5 rounded-control border border-line-strong bg-surface px-2 py-1.5 transition-[border-color,box-shadow] hover:border-primary-300 focus-within:border-primary focus-within:shadow-focus",
         invalid && "border-bad",
       )}
       onClick={(event) => (event.currentTarget.querySelector("input") as HTMLInputElement | null)?.focus()}

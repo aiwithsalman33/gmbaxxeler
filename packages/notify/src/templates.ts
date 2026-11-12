@@ -45,23 +45,23 @@ function managerSteps(agencyEmail: string): string[] {
 
 const CONTENT: Record<EmailTemplate, (d: EmailData) => Content> = {
   verify_email: (d) => ({
-    subject: "Verify your LocalPilot email",
+    subject: "Verify your AX Grow email",
     heading: "Verify your email",
     paragraphs: ["Confirm this address to finish setting up your account. The link works for 24 hours."],
     action: { label: "Verify email", url: d.link ?? "" },
     footer: "If you didn't create an account, you can ignore this email.",
   }),
   reset_password: (d) => ({
-    subject: "Reset your LocalPilot password",
+    subject: "Reset your AX Grow password",
     heading: "Reset your password",
     paragraphs: ["Choose a new password using the button below. The link works for 1 hour and can only be used once."],
     action: { label: "Reset password", url: d.link ?? "" },
     footer: "If you didn't ask for this, you can ignore this email. Your password won't change.",
   }),
   team_invite: (d) => ({
-    subject: `Join ${d.agencyName} on LocalPilot`,
+    subject: `Join ${d.agencyName} on AX Grow`,
     heading: "You're invited",
-    paragraphs: [`${d.agencyName} invited you to manage clients on LocalPilot. The link works for 7 days.`],
+    paragraphs: [`${d.agencyName} invited you to manage clients on AX Grow. The link works for 7 days.`],
     action: { label: "Accept invite", url: d.link ?? "" },
   }),
   client_invite: (d) => ({
@@ -81,7 +81,7 @@ const CONTENT: Record<EmailTemplate, (d: EmailData) => Content> = {
     subject: d.title ?? "A negative review needs attention",
     heading: "A negative review needs attention",
     paragraphs: [d.body ?? "", "A draft reply is waiting for your approval. Nothing is published until you approve it."],
-    action: { label: "Open LocalPilot", url: d.link ?? "" },
+    action: { label: "Open AX Grow", url: d.link ?? "" },
   }),
   failed_job: (d) => ({
     subject: d.title ?? "A scheduled job failed",
@@ -99,7 +99,7 @@ const CONTENT: Record<EmailTemplate, (d: EmailData) => Content> = {
     subject: d.title ?? "A client connected",
     heading: "A client connected",
     paragraphs: [d.body ?? "", "Fill in their knowledge base so AI posts and replies sound like them."],
-    action: { label: "Open LocalPilot", url: d.link ?? "" },
+    action: { label: "Open AX Grow", url: d.link ?? "" },
   }),
   google_reconnect: (d) => ({
     subject: d.title ?? "Reconnect your Google account",
@@ -108,29 +108,29 @@ const CONTENT: Record<EmailTemplate, (d: EmailData) => Content> = {
     action: { label: "Reconnect", url: d.link ?? "" },
   }),
   test: () => ({
-    subject: "LocalPilot test email",
+    subject: "AX Grow test email",
     heading: "Email is working",
-    paragraphs: ["This test came from your LocalPilot mail settings."],
+    paragraphs: ["This test came from your AX Grow mail settings."],
   }),
 };
 
 function renderHtml(content: Content): string {
   const paragraphs = content.paragraphs
     .filter(Boolean)
-    .map((text) => `<p style="margin:0 0 16px;color:#1e1b2e;font-size:15px;line-height:1.6">${escapeHtml(text)}</p>`)
+    .map((text) => `<p style="margin:0 0 16px;color:#16142b;font-size:15px;line-height:1.6">${escapeHtml(text)}</p>`)
     .join("");
   const steps = content.steps?.length
-    ? `<ol style="margin:0 0 16px;padding-left:20px;color:#1e1b2e;font-size:15px;line-height:1.8">${content.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>`
+    ? `<ol style="margin:0 0 16px;padding-left:20px;color:#16142b;font-size:15px;line-height:1.8">${content.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>`
     : "";
   const action = content.action?.url
-    ? `<p style="margin:24px 0"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 24px;border-radius:12px">${escapeHtml(content.action.label)}</a></p>`
+    ? `<p style="margin:24px 0"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;background:#6246ea;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 24px;border-radius:12px">${escapeHtml(content.action.label)}</a></p>`
     : "";
-  const footer = content.footer ? `<p style="margin:16px 0 0;color:#6b6880;font-size:13px;line-height:1.5">${escapeHtml(content.footer)}</p>` : "";
-  return `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f3ff;font-family:Segoe UI,Roboto,Arial,sans-serif">
+  const footer = content.footer ? `<p style="margin:16px 0 0;color:#66637f;font-size:13px;line-height:1.5">${escapeHtml(content.footer)}</p>` : "";
+  return `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f4fb;font-family:Poppins,Segoe UI,Roboto,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e9e5f5;border-radius:16px">
-<tr><td style="padding:24px 32px 0;color:#7c3aed;font-size:18px;font-weight:700">LocalPilot</td></tr>
-<tr><td style="padding:16px 32px 28px"><h1 style="margin:0 0 16px;color:#1e1b2e;font-size:21px">${escapeHtml(content.heading)}</h1>${paragraphs}${steps}${action}${footer}</td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e8e6f3;border-radius:16px">
+<tr><td style="padding:24px 32px 0;color:#6246ea;font-size:18px;font-weight:700">AX Grow</td></tr>
+<tr><td style="padding:16px 32px 28px"><h1 style="margin:0 0 16px;color:#16142b;font-size:21px">${escapeHtml(content.heading)}</h1>${paragraphs}${steps}${action}${footer}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 

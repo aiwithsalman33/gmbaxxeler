@@ -70,7 +70,7 @@ export function ClientSwitcher() {
     >
       <Popover.Trigger
         aria-label={active ? `Active client: ${active.name}. Switch client` : "Switch client"}
-        className="flex h-10 w-44 min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-line bg-white px-2 text-sm font-medium hover:border-primary-300 hover:bg-primary-50 focus-visible:shadow-focus focus-visible:outline-none sm:w-64"
+        className="flex h-10 max-w-64 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl border border-line bg-surface px-2 text-sm font-medium hover:border-primary-300 hover:bg-primary-50 focus-visible:shadow-focus focus-visible:outline-none"
       >
         {active ? (
           <span className="relative">
@@ -84,7 +84,7 @@ export function ClientSwitcher() {
         <ChevronsUpDown className="size-4 shrink-0 text-muted" aria-hidden />
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={8} className="z-40 w-80 max-w-[calc(100vw-2rem)] animate-fade-in rounded-xl border border-line bg-white p-2 shadow-raised">
+        <Popover.Content align="end" sideOffset={8} className="z-40 w-80 max-w-[calc(100vw-2rem)] animate-fade-in rounded-xl border border-line bg-surface p-2 shadow-raised">
           <div className="relative mb-2">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
             <input
@@ -101,7 +101,7 @@ export function ClientSwitcher() {
                 setSearch(event.target.value);
                 setHighlight(0);
               }}
-              className="h-10 w-full rounded-lg border border-line-strong bg-white pr-3 pl-9 text-sm placeholder:text-subtle focus:border-primary focus:shadow-focus focus:outline-none"
+              className="h-10 w-full rounded-lg border border-line-strong bg-surface pr-3 pl-9 text-sm placeholder:text-subtle focus:border-primary focus:shadow-focus focus:outline-none"
             />
           </div>
           <p className="px-2 pb-1 text-2xs font-semibold tracking-wider text-subtle uppercase">

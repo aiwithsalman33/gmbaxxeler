@@ -128,7 +128,7 @@ export function ScheduleHistory({ rows, timezone, itemHeading }: { rows: History
 
 function ErrorLine({ text }: { text: string }) {
   return (
-    <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-bad-soft px-2.5 py-1.5 text-xs break-words text-red-900">
+    <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-bad-soft px-2.5 py-1.5 text-xs break-words text-bad-ink">
       <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-bad" aria-hidden />
       <span className="min-w-0">{text}</span>
     </p>

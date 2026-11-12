@@ -31,7 +31,7 @@ export function SecuritySettings() {
   return (
     <Card className="max-w-3xl">
       <CardHeader icon={Lock} title="Change password" description={`Use at least ${MIN_PASSWORD} characters. Other devices are signed out; this one stays signed in.`} />
-      <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Current password">
           {(props) => <PasswordInput {...props} required autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />}
         </Field>

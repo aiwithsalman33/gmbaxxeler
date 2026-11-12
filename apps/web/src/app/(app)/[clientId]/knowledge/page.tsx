@@ -111,7 +111,7 @@ function KnowledgeSkeleton() {
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-4 w-full max-w-lg" />
       </div>
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Skeleton className="h-[380px]" />
           <Skeleton className="h-[340px]" />
@@ -261,7 +261,7 @@ export default function KnowledgePage() {
             <Field label="Tone of voice" error={shown("tone")} action={<Counter value={form.tone} max={500} />}>
               {(props) => <Input {...props} placeholder="Warm, reassuring, plain English" value={form.tone} onChange={(event) => set("tone", event.target.value)} />}
             </Field>
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               {list("dos")}
               {list("donts")}
             </div>
@@ -322,9 +322,9 @@ export default function KnowledgePage() {
         </aside>
 
         <div className="sticky bottom-4 z-20 lg:col-span-3">
-          <div className="flex items-center gap-2 rounded-card border border-line bg-white/95 py-2.5 pr-2.5 pl-4 shadow-raised backdrop-blur-md sm:gap-3 sm:py-3 sm:pr-3 sm:pl-5">
+          <div className="flex items-center gap-2 rounded-card border border-line bg-surface/95 py-2.5 pr-2.5 pl-4 shadow-raised backdrop-blur-md sm:gap-3 sm:py-3 sm:pr-3 sm:pl-5">
             <p className="mr-auto flex min-w-0 items-center gap-2 text-sm" aria-live="polite">
-              <span aria-hidden className={cn("size-2 shrink-0 rounded-full", dirty || neverSaved ? "bg-amber-500" : "bg-green-600")} />
+              <span aria-hidden className={cn("size-2 shrink-0 rounded-full", dirty || neverSaved ? "bg-warn" : "bg-good")} />
               <span className="truncate">{dirty ? "Unsaved changes" : neverSaved ? "Not saved yet" : `Saved ${formatDate(profile?.onboardedAt)}`}</span>
             </p>
             {dirty && (

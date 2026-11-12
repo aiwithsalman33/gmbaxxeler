@@ -26,7 +26,7 @@ export function Stars({ rating, size = "sm", className }: { rating: number; size
   return (
     <span role="img" aria-label={`${rating} out of 5 stars`} className={cn("inline-flex items-center gap-0.5", className)}>
       {[1, 2, 3, 4, 5].map((n) => (
-        <Star key={n} aria-hidden className={cn(px, n <= Math.round(rating) ? "fill-amber-400 text-amber-400" : "fill-gray-200 text-gray-200")} />
+        <Star key={n} aria-hidden className={cn(px, n <= Math.round(rating) ? "fill-star text-star" : "fill-line-strong text-line-strong")} />
       ))}
     </span>
   );
@@ -59,7 +59,7 @@ export function WeekdayChips({ value, onChange, label = "Days", disabled }: { va
             onClick={() => toggle(day.value)}
             className={cn(
               "h-10 min-w-12 cursor-pointer rounded-control border px-3 text-sm font-medium transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-              on ? "border-primary bg-primary text-white shadow-sm shadow-primary/20" : "border-line-strong bg-white text-ink-soft hover:border-primary-300 hover:bg-primary-50",
+              on ? "border-primary bg-primary text-white shadow-sm shadow-primary/20" : "border-line-strong bg-surface text-ink-soft hover:border-primary-300 hover:bg-primary-50",
             )}
           >
             {day.short}
@@ -90,7 +90,7 @@ export function TimePicker({ id, value, onChange, disabled }: { id?: string; val
         value={value}
         disabled={disabled}
         onChange={(event) => event.target.value && onChange(event.target.value)}
-        className="h-10 w-full rounded-control border border-line-strong bg-white px-3 text-sm text-ink hover:border-primary-300 focus:border-primary focus:shadow-focus focus:outline-none"
+        className="h-10 w-full rounded-control border border-line-strong bg-surface px-3 text-sm text-ink hover:border-primary-300 focus:border-primary focus:shadow-focus focus:outline-none"
       />
       <div className="flex flex-wrap gap-1.5" aria-label="Common times">
         {QUICK_TIMES.map((time) => (
@@ -118,17 +118,17 @@ export function ProgressRing({ value, size = 128, stroke = 12, label }: { value:
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(100, value));
-  const tone = clamped >= 80 ? "#15803d" : clamped >= 50 ? "#7c3aed" : "#d97706";
+  const tone = clamped >= 80 ? "var(--color-good)" : clamped >= 50 ? "var(--color-primary)" : "var(--color-warn)";
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={`${label}: ${clamped} out of 100`}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#ede9fe" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" style={{ stroke: "var(--color-primary-100)" }} strokeWidth={stroke} />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={tone}
+          style={{ stroke: tone }}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}

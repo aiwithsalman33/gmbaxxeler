@@ -85,7 +85,7 @@ export function ScheduleCard({ clientId, data }: { clientId: string; data: Sched
           )}
         </Field>
       </div>
-      <div className="rounded-xl border border-line bg-white p-4">
+      <div className="rounded-xl border border-line bg-surface p-4">
         <Switch
           checked={renameOn}
           disabled={toggleRename.isPending}

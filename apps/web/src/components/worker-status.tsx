@@ -65,7 +65,7 @@ export function WorkerStatusStrip({ className }: { className?: string }) {
   if (health.isPending) return <Skeleton className={cn("h-12", className)} />;
   if (health.isError) return null;
   return (
-    <div className={cn("rounded-xl border border-line bg-white px-4 py-3 shadow-card", className)}>
+    <div className={cn("rounded-xl border border-line bg-surface px-4 py-3 shadow-card", className)}>
       <StatusLine health={health.data} />
     </div>
   );

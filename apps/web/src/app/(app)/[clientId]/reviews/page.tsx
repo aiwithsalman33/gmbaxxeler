@@ -83,7 +83,7 @@ function StatTile({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-3 text-left sm:p-4 transition-[border-color,box-shadow] focus-visible:shadow-focus focus-visible:outline-none",
+        "flex cursor-pointer items-start gap-3 rounded-xl border bg-surface p-3 text-left sm:p-4 transition-[border-color,box-shadow] focus-visible:shadow-focus focus-visible:outline-none",
         active ? "border-primary ring-1 ring-primary" : "border-line hover:border-primary-300",
       )}
     >
@@ -129,7 +129,7 @@ function Summary({
 
   return (
     <Card className="mb-6">
-      <div className="grid gap-6 sm:grid-cols-[auto_1fr] lg:grid-cols-[auto_1fr_auto] lg:items-center">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-[auto_1fr] lg:grid-cols-[auto_1fr_auto] lg:items-center">
         <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-1 sm:pr-6 lg:border-r lg:border-line">
           <p className="text-4xl font-bold tracking-tight text-ink tabular-nums">{total ? average.toFixed(1) : "–"}</p>
           <div>
@@ -158,11 +158,11 @@ function Summary({
                 >
                   <span className="flex w-7 shrink-0 items-center gap-0.5 font-medium text-ink-soft">
                     {stars}
-                    <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
+                    <Star className="size-3 fill-star text-star" aria-hidden />
                   </span>
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-primary-100">
                     <span
-                      className={cn("block h-full rounded-full transition-[width] duration-500", stars <= 2 ? "bg-red-400" : stars === 3 ? "bg-amber-400" : "bg-primary")}
+                      className={cn("block h-full rounded-full transition-[width] duration-500", stars <= 2 ? "bg-bad" : stars === 3 ? "bg-star" : "bg-primary")}
                       style={{ width: `${(count / max) * 100}%` }}
                     />
                   </span>
@@ -302,7 +302,7 @@ export default function ReviewsPage() {
                   onClick={() => setRating(value)}
                   className={cn(
                     "inline-flex h-8 cursor-pointer items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:shadow-focus focus-visible:outline-none",
-                    selected ? "border-primary bg-primary text-white shadow-sm shadow-primary/20" : "border-line-strong bg-white text-ink-soft hover:border-primary-300 hover:bg-primary-50",
+                    selected ? "border-primary bg-primary text-white shadow-sm shadow-primary/20" : "border-line-strong bg-surface text-ink-soft hover:border-primary-300 hover:bg-primary-50",
                   )}
                 >
                   {value === "low" ? (
@@ -313,7 +313,7 @@ export default function ReviewsPage() {
                   ) : value ? (
                     <>
                       {value}
-                      <Star className={cn("size-3", selected ? "fill-white text-white" : "fill-amber-400 text-amber-400")} aria-hidden />
+                      <Star className={cn("size-3", selected ? "fill-white text-white" : "fill-star text-star")} aria-hidden />
                       <span className="sr-only">stars</span>
                     </>
                   ) : (

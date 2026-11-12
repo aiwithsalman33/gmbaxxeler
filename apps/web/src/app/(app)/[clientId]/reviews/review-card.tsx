@@ -45,7 +45,7 @@ function ReviewText({ review, className }: { review: Review; className?: string 
 
 function ReplyBlock({ label, icon: Icon, children, tone = "primary" }: { label: string; icon: typeof Info; children: React.ReactNode; tone?: "primary" | "muted" }) {
   return (
-    <div className={cn("mt-4 rounded-xl border-l-[3px] px-4 py-3", tone === "primary" ? "border-primary bg-lavender" : "border-line-strong bg-gray-50")}>
+    <div className={cn("mt-4 rounded-xl border-l-[3px] px-4 py-3", tone === "primary" ? "border-primary bg-lavender" : "border-line-strong bg-surface-2")}>
       <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
         <Icon className="size-3.5" aria-hidden />
         {label}
@@ -118,7 +118,7 @@ export function ReviewCard({ clientId, review, onChanged }: { clientId: string; 
   const fieldError = touched && !text.trim() ? "Write a reply before sending." : null;
 
   return (
-    <Card className={cn("p-5 sm:p-6", negative && "border-red-200")}>
+    <Card className={cn("p-5 sm:p-6", negative && "border-bad-line")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <ReviewerLine review={review} />
         <div className="flex flex-wrap items-center gap-1.5">
@@ -184,7 +184,7 @@ export function ReviewCard({ clientId, review, onChanged }: { clientId: string; 
         }
       >
         <div className="space-y-5">
-          <figure className={cn("rounded-xl border bg-lavender/60 p-4", negative ? "border-red-200" : "border-line")}>
+          <figure className={cn("rounded-xl border bg-lavender/60 p-4", negative ? "border-bad-line" : "border-line")}>
             <ReviewerLine review={review} />
             <blockquote className="mt-3">
               <ReviewText review={review} />

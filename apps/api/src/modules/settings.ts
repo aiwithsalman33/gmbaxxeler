@@ -89,7 +89,7 @@ export function settingsRoutes(ctx: AppContext) {
     });
 
     app.post("/settings/notifications/test", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request) => {
-      await deliverAlert(deps, { workspaceId: request.auth.workspaceId, clientId: null, type: "settings.test", title: "LocalPilot test alert", body: "Alerts are working." });
+      await deliverAlert(deps, { workspaceId: request.auth.workspaceId, clientId: null, type: "settings.test", title: "AX Grow test alert", body: "Alerts are working." });
       return { ok: true };
     });
 

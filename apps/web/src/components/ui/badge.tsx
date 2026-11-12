@@ -5,20 +5,20 @@ export type Tone = "primary" | "good" | "warn" | "bad" | "info" | "neutral";
 
 const TONES: Record<Tone, string> = {
   primary: "bg-primary-100 text-primary-800 ring-primary-200",
-  good: "bg-good-soft text-good ring-green-200",
-  warn: "bg-warn-soft text-warn ring-amber-200",
-  bad: "bg-bad-soft text-bad ring-red-200",
-  info: "bg-info-soft text-info ring-blue-200",
-  neutral: "bg-gray-100 text-muted ring-gray-200",
+  good: "bg-good-soft text-good ring-good-line",
+  warn: "bg-warn-soft text-warn ring-warn-line",
+  bad: "bg-bad-soft text-bad ring-bad-line",
+  info: "bg-info-soft text-info ring-info-line",
+  neutral: "bg-neutral-soft text-muted ring-neutral-line",
 };
 
 const DOTS: Record<Tone, string> = {
   primary: "bg-primary",
-  good: "bg-green-600",
-  warn: "bg-amber-500",
-  bad: "bg-red-600",
-  info: "bg-blue-600",
-  neutral: "bg-gray-400",
+  good: "bg-good",
+  warn: "bg-warn",
+  bad: "bg-bad",
+  info: "bg-info",
+  neutral: "bg-subtle",
 };
 
 export function Badge({ tone = "neutral", dot, className, children, ...props }: HTMLAttributes<HTMLSpanElement> & { tone?: Tone; dot?: boolean }) {
@@ -36,7 +36,7 @@ export function StatusDot({ tone, className, label }: { tone: Tone; className?: 
       role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
-      className={cn("inline-block size-2.5 shrink-0 rounded-full ring-2 ring-white", DOTS[tone], className)}
+      className={cn("inline-block size-2.5 shrink-0 rounded-full ring-2 ring-surface", DOTS[tone], className)}
     />
   );
 }

@@ -50,7 +50,7 @@ function WorkspaceCard() {
     <Card>
       <CardHeader icon={Building2} title="Workspace" description={owner ? "The name your team sees, and the time zone used for new clients." : "Only the owner can change these."} />
       {me.isPending && (
-        <LoadingBlock label="Loading workspace" className="grid gap-4 sm:grid-cols-2">
+        <LoadingBlock label="Loading workspace" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Skeleton className="h-[66px]" />
           <Skeleton className="h-[66px]" />
         </LoadingBlock>
@@ -58,7 +58,7 @@ function WorkspaceCard() {
       {me.isError && <ErrorState bare error={me.error} onRetry={() => me.refetch()} />}
       {data && (
         <form onSubmit={submit}>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Workspace name">{(props) => <Input {...props} required minLength={2} maxLength={120} disabled={!owner} value={name} onChange={(event) => setName(event.target.value)} />}</Field>
             <Field label="Time zone" hint="For example Asia/Kolkata">
               {(props) => <Input {...props} maxLength={64} disabled={!owner} value={timezone} onChange={(event) => setTimezone(event.target.value)} />}
@@ -147,7 +147,7 @@ export function GoogleSummary() {
         }
       />
       {status.isPending && (
-        <LoadingBlock label="Loading Google status" className="grid gap-3 sm:grid-cols-3">
+        <LoadingBlock label="Loading Google status" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[0, 1, 2].map((n) => (
             <Skeleton key={n} className="h-[68px]" />
           ))}
@@ -159,7 +159,7 @@ export function GoogleSummary() {
           <p className="mb-3 text-sm font-medium text-ink-soft">
             {done} of {items.length} setup steps done
           </p>
-          <ul className="grid gap-3 sm:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {items.map((item) => (
               <li key={item.label} className="flex items-start gap-3 rounded-xl border border-line px-4 py-3">
                 {item.done ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-good" aria-label="Done" /> : <Circle className="mt-0.5 size-5 shrink-0 text-subtle" aria-label="Not done" />}

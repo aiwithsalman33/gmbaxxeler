@@ -33,17 +33,17 @@ export function NotificationBell() {
     <Popover.Root>
       <Popover.Trigger
         aria-label={`Notifications, ${unread} unread`}
-        className="relative flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line bg-white text-ink-soft hover:bg-primary-50 focus-visible:shadow-focus focus-visible:outline-none"
+        className="relative flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface text-ink-soft hover:bg-primary-50 focus-visible:shadow-focus focus-visible:outline-none"
       >
         <Bell className="size-5" aria-hidden />
         {unread > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-2xs font-semibold text-white ring-2 ring-white">
+          <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-2xs font-semibold text-white ring-2 ring-surface">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={8} className="z-40 w-96 max-w-[calc(100vw-2rem)] animate-fade-in rounded-xl border border-line bg-white shadow-raised">
+        <Popover.Content align="end" sideOffset={8} className="z-40 w-96 max-w-[calc(100vw-2rem)] animate-fade-in rounded-xl border border-line bg-surface shadow-raised">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h2 className="text-sm font-semibold">Notifications</h2>
             {unread > 0 && (

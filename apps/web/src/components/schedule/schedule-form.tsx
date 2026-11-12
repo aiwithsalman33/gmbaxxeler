@@ -131,7 +131,7 @@ export function CountField({ label, value, onChange, min, max, hint }: { label: 
   return (
     <Field label={label} hint={hint} error={error}>
       {(props) => (
-        <div className="flex h-10 w-full max-w-44 items-stretch overflow-hidden rounded-control border border-line-strong bg-white focus-within:border-primary focus-within:shadow-focus">
+        <div className="flex h-10 w-full max-w-44 items-stretch overflow-hidden rounded-control border border-line-strong bg-surface focus-within:border-primary focus-within:shadow-focus">
           <button type="button" aria-label={`Fewer: ${label}`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} className="flex w-10 cursor-pointer items-center justify-center text-muted hover:bg-primary-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40">
             <Minus className="size-4" aria-hidden />
           </button>
@@ -143,7 +143,7 @@ export function CountField({ label, value, onChange, min, max, hint }: { label: 
             max={max}
             value={Number.isNaN(value) ? "" : value}
             onChange={(event) => onChange(event.target.valueAsNumber)}
-            className="w-full min-w-0 [appearance:textfield] border-x border-line bg-white text-center text-sm font-semibold text-ink tabular-nums focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="w-full min-w-0 [appearance:textfield] border-x border-line bg-surface text-center text-sm font-semibold text-ink tabular-nums focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
           <button type="button" aria-label={`More: ${label}`} disabled={value >= max} onClick={() => onChange(Math.min(max, (Number.isNaN(value) ? min - 1 : value) + 1))} className="flex w-10 cursor-pointer items-center justify-center text-muted hover:bg-primary-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40">
             <Plus className="size-4" aria-hidden />

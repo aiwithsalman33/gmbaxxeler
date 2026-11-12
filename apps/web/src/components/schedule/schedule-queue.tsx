@@ -168,7 +168,7 @@ function QueueCalendar({ groups, today, timezone }: { groups: Map<string, QueueI
                   );
                   const style = cn(
                     "flex w-full items-center gap-1.5 rounded-lg border-l-2 bg-primary-50 px-1.5 py-1 text-left text-2xs text-ink",
-                    item.accent === "warn" ? "border-amber-500 bg-warn-soft" : item.accent === "bad" ? "border-red-600 bg-bad-soft" : "border-primary",
+                    item.accent === "warn" ? "border-warn bg-warn-soft" : item.accent === "bad" ? "border-bad bg-bad-soft" : "border-primary",
                   );
                   return (
                     <li key={item.id}>

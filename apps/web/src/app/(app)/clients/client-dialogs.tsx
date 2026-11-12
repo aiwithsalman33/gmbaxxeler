@@ -55,7 +55,7 @@ export function AddClientDialog({ open, onOpenChange, onCreated }: { open: boole
     >
       <form id="add-client-form" onSubmit={submit} className="space-y-4">
         <Field label="Business name">{(props) => <Input {...props} name="businessName" required minLength={2} autoFocus value={form.businessName} onChange={set("businessName")} />}</Field>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Client mobile" hint="With country code">
             {(props) => <Input {...props} type="tel" placeholder="+919876543210" value={form.contactPhone} onChange={set("contactPhone")} />}
           </Field>

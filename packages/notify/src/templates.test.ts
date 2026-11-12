@@ -8,7 +8,7 @@ describe("renderEmail", () => {
     const email = renderEmail(template, data);
     expect(email.subject.length).toBeGreaterThan(0);
     expect(email.text.length).toBeGreaterThan(0);
-    expect(email.html).toContain("#7c3aed");
+    expect(email.html).toContain("#6246ea");
   });
 
   it("puts the link in both formats", () => {

@@ -167,7 +167,7 @@ function CredentialsCard({ owner }: { owner: boolean }) {
       />
       {query.isPending && (
         <LoadingBlock label="Loading credentials" className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Skeleton className="h-[66px]" />
             <Skeleton className="h-[66px]" />
           </div>
@@ -177,7 +177,7 @@ function CredentialsCard({ owner }: { owner: boolean }) {
       {query.isError && <ErrorState bare error={query.error} onRetry={() => query.refetch()} />}
       {data && (
         <form onSubmit={submit}>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Client ID">{(props) => <Input {...props} disabled={!owner} value={clientId} onChange={(event) => setClientId(event.target.value)} />}</Field>
             <Field label="Client Secret" hint={data.maskedSecret ? "Leave blank to keep the saved secret." : undefined}>
               {(props) => (
@@ -270,7 +270,7 @@ function AgencyCard({ owner, expected }: { owner: boolean; expected: string | nu
           }
         />
         {connections.isPending && (
-          <LoadingBlock label="Loading agency account" className="grid gap-3 sm:grid-cols-2">
+          <LoadingBlock label="Loading agency account" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[0, 1, 2, 3].map((n) => (
               <Skeleton key={n} className="h-[62px]" />
             ))}
@@ -293,7 +293,7 @@ function AgencyCard({ owner, expected }: { owner: boolean; expected: string | nu
         )}
         {agency && (
           <>
-            <dl className="grid gap-3 sm:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Detail label="Account">
                 <span className="font-medium break-all">{agency.googleAccountEmail}</span>
               </Detail>

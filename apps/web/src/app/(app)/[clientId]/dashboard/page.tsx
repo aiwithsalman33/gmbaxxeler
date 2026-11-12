@@ -30,7 +30,7 @@ function Delta({ current, previous }: { current: number; previous: number }) {
   if (previous === 0) return <span className="text-xs text-muted">No earlier data</span>;
   const change = Math.round(((current - previous) / previous) * 100);
   const Icon = change > 0 ? ArrowUpRight : change < 0 ? ArrowDownRight : Minus;
-  const style = change > 0 ? "bg-good-soft text-good" : change < 0 ? "bg-bad-soft text-bad" : "bg-gray-100 text-muted";
+  const style = change > 0 ? "bg-good-soft text-good" : change < 0 ? "bg-bad-soft text-bad" : "bg-neutral-soft text-muted";
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted">
       <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold", style)}>
@@ -60,7 +60,7 @@ function DashboardSkeleton() {
         ))}
       </div>
       <Skeleton className="h-[400px]" />
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Skeleton className="h-80" />
         <Skeleton className="h-80 lg:col-span-2" />
       </div>
@@ -146,7 +146,7 @@ export default function DashboardPage() {
                   aria-pressed={selected}
                   onClick={() => setMetric(key)}
                   className={cn(
-                    "group cursor-pointer rounded-card border bg-white p-4 text-left shadow-card transition-[border-color,box-shadow] focus-visible:shadow-focus focus-visible:outline-none sm:p-5",
+                    "group cursor-pointer rounded-card border bg-surface p-4 text-left shadow-card transition-[border-color,box-shadow] focus-visible:shadow-focus focus-visible:outline-none sm:p-5",
                     selected ? "border-primary ring-1 ring-primary" : "border-line hover:border-primary-300",
                   )}
                 >
@@ -206,7 +206,7 @@ export default function DashboardPage() {
             </div>
             <ul className="grid flex-1 gap-2 sm:grid-cols-2">
               {[...openItems, ...doneItems].map((item) => (
-                <li key={item.key} className={cn("flex gap-2.5 rounded-xl border px-3 py-2.5", item.done ? "border-transparent bg-lavender/60" : "border-line bg-white")}>
+                <li key={item.key} className={cn("flex gap-2.5 rounded-xl border px-3 py-2.5", item.done ? "border-transparent bg-lavender/60" : "border-line bg-surface")}>
                   {item.done ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-good" aria-label="Done" /> : <Circle className="mt-0.5 size-4 shrink-0 text-warn" aria-label="To do" />}
                   <div className="min-w-0">
                     <p className={cn("text-sm font-medium", item.done && "text-muted")}>{item.label}</p>

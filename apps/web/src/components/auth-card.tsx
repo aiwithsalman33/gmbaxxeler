@@ -1,7 +1,8 @@
 import { AlertCircle, BarChart3, CalendarClock, KeyRound, MessageSquareText, ShieldCheck, Undo2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Logo } from "@/components/app-shell";
+import banner from "@/assets/brand/axgrow-logo.jpg";
+import { Logo } from "@/components/brand";
 import { Notice } from "@/components/states";
 import { cn } from "@/lib/utils";
 
@@ -10,16 +11,16 @@ type Audience = "agency" | "client";
 const PANELS: Record<Audience, { heading: string; body: string; points: { icon: LucideIcon; title: string; body: string }[] }> = {
   agency: {
     heading: "Keep every Google Business Profile busy, without the busywork.",
-    body: "LocalPilot runs posts, photos and review replies for all your local clients from one place.",
+    body: "AX Grow runs posts, photos and review replies for all your local clients from one place.",
     points: [
-      { icon: CalendarClock, title: "Posts and photos on schedule", body: "Plan once and LocalPilot publishes for you." },
+      { icon: CalendarClock, title: "Posts and photos on schedule", body: "Plan once and AX Grow publishes for you." },
       { icon: MessageSquareText, title: "Reviews answered faster", body: "Draft friendly replies and approve them in a click." },
       { icon: BarChart3, title: "Results you can show clients", body: "Calls, clicks and searches for every profile." },
     ],
   },
   client: {
     heading: "Let your agency look after your Google Business Profile.",
-    body: "Your agency uses LocalPilot to keep your profile fresh with posts, photos and review replies.",
+    body: "Your agency uses AX Grow to keep your profile fresh with posts, photos and review replies.",
     points: [
       { icon: KeyRound, title: "Sign in with Google", body: "Your password is never shared with anyone." },
       { icon: ShieldCheck, title: "You stay the owner", body: "Your agency only gets the access you approve." },
@@ -31,45 +32,42 @@ const PANELS: Record<Audience, { heading: string; body: string; points: { icon: 
 function BrandPanel({ audience }: { audience: Audience }) {
   const panel = PANELS[audience];
   return (
-    <aside className="relative hidden overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 p-10 text-white shadow-raised lg:flex lg:flex-col xl:p-14">
-      <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 size-80 rounded-full bg-primary-400/40 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-32 -left-20 size-96 rounded-full bg-fuchsia-400/25 blur-3xl" />
+    // Pure black, like the logo file, so the banner sits on it with no visible edge.
+    <aside className="relative hidden overflow-hidden rounded-[1.75rem] bg-black text-white shadow-raised lg:flex lg:flex-col">
+      <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 size-[28rem] rounded-full bg-[#6246ea]/30 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -right-24 bottom-10 size-80 rounded-full bg-[#3d8ffb]/20 blur-3xl" />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:22px_22px]"
+        className="pointer-events-none absolute inset-0 opacity-[0.06] [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:22px_22px]"
       />
-      <div className="relative">
-        <span className="inline-flex rounded-2xl bg-white px-3 py-2 shadow-lg shadow-primary-900/20">
-          <Logo />
-        </span>
-      </div>
-      <div className="relative my-auto max-w-md py-12">
-        <h2 className="text-[2rem] leading-tight font-bold tracking-tight text-balance">{panel.heading}</h2>
-        <p className="mt-4 text-base text-primary-100">{panel.body}</p>
-        <ul className="mt-10 space-y-5">
+      <img src={banner.src} alt="AX Grow: Automate, Optimize, Grow. Google Business Profile Automation" width={banner.width} height={banner.height} className="relative w-full" />
+      <div className="relative mt-auto max-w-lg px-10 pb-10 xl:px-14 xl:pb-14">
+        <h2 className="text-[1.75rem] leading-tight font-bold tracking-tight text-balance xl:text-[2rem]">{panel.heading}</h2>
+        <p className="mt-3 text-[0.95rem] text-white/70">{panel.body}</p>
+        <ul className="mt-8 space-y-4">
           {panel.points.map(({ icon: Icon, title, body }) => (
             <li key={title} className="flex items-start gap-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/12 ring-1 ring-white/20 backdrop-blur">
-                <Icon className="size-5 text-white" aria-hidden />
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.07] ring-1 ring-white/15">
+                <Icon className="size-5 text-[#a99cff]" aria-hidden />
               </span>
               <span>
                 <span className="block text-sm font-semibold">{title}</span>
-                <span className="block text-sm text-primary-200">{body}</span>
+                <span className="block text-sm text-white/60">{body}</span>
               </span>
             </li>
           ))}
         </ul>
+        <p className="mt-10 text-xs text-white/45">Made for agencies that manage local businesses.</p>
       </div>
-      <p className="relative text-xs text-primary-200">Made for agencies that manage local businesses.</p>
     </aside>
   );
 }
 
 const TONES = {
   primary: "bg-primary-50 text-primary ring-primary-100",
-  good: "bg-good-soft text-good ring-green-100",
-  bad: "bg-bad-soft text-bad ring-red-100",
-  warn: "bg-warn-soft text-warn ring-amber-100",
+  good: "bg-good-soft text-good ring-good-line",
+  bad: "bg-bad-soft text-bad ring-bad-line",
+  warn: "bg-warn-soft text-warn ring-warn-line",
 };
 
 /**
@@ -100,10 +98,10 @@ export function AuthCard({
       <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-10 sm:px-6 lg:min-h-0">
         <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 size-[28rem] -translate-x-1/2 rounded-full bg-primary-200/40 blur-3xl lg:hidden" />
         <div className="relative w-full max-w-[26rem]">
-          <Link href="/login" aria-label="LocalPilot home" className="mb-8 flex justify-center rounded-xl focus-visible:shadow-focus focus-visible:outline-none lg:hidden">
-            <Logo />
+          <Link href="/login" aria-label="AX Grow home" className="mb-8 flex justify-center rounded-xl focus-visible:shadow-focus focus-visible:outline-none lg:hidden">
+            <Logo tagline />
           </Link>
-          <div className="rounded-[1.25rem] border border-line bg-white p-6 shadow-raised sm:p-8">
+          <div className="rounded-[1.25rem] border border-line bg-surface p-6 shadow-raised sm:p-8">
             <div className={cn(centred && "text-center")}>
               {Icon && (
                 <div className={cn("mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl ring-8", TONES[tone])}>
@@ -155,13 +153,13 @@ export function GoogleLogo({ className }: { className?: string }) {
 }
 
 const googleButton =
-  "inline-flex h-11 w-full items-center justify-center gap-3 rounded-control border border-line-strong bg-white px-4 text-sm font-semibold text-ink shadow-sm transition-[background-color,border-color,box-shadow] hover:border-primary-300 hover:bg-primary-50 focus-visible:shadow-focus focus-visible:outline-none";
+  "inline-flex h-11 w-full items-center justify-center gap-3 rounded-control border border-line-strong bg-surface px-4 text-sm font-semibold text-ink shadow-sm transition-[background-color,border-color,box-shadow] hover:border-primary-300 hover:bg-primary-50 focus-visible:shadow-focus focus-visible:outline-none";
 
 /** "Continue with Google". A link when `href` is given, otherwise a disabled button. */
 export function GoogleButton({ href, label = "Continue with Google", describedBy }: { href?: string; label?: string; describedBy?: string }) {
   if (!href) {
     return (
-      <button type="button" disabled aria-describedby={describedBy} className={cn(googleButton, "cursor-not-allowed opacity-55 hover:border-line-strong hover:bg-white")}>
+      <button type="button" disabled aria-describedby={describedBy} className={cn(googleButton, "cursor-not-allowed opacity-55 hover:border-line-strong hover:bg-surface")}>
         <GoogleLogo className="size-5" />
         {label}
       </button>
