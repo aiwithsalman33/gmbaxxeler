@@ -64,20 +64,20 @@ export function MetricChart({ metric, series }: { metric: MetricKey; series: Das
             <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
               <defs>
                 <linearGradient id="metricFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+                  <stop offset="0%" style={{ stopColor: "var(--color-primary)", stopOpacity: 0.28 }} />
+                  <stop offset="100%" style={{ stopColor: "var(--color-accent)", stopOpacity: 0 }} />
                 </linearGradient>
               </defs>
-              <CartesianGrid vertical={false} stroke="#ebe7f7" strokeDasharray="4 4" />
-              <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 12, fill: "#6b6880" }} tickLine={false} axisLine={false} minTickGap={40} />
-              <YAxis tick={{ fontSize: 12, fill: "#6b6880" }} tickLine={false} axisLine={false} allowDecimals={false} width={48} />
+              <CartesianGrid vertical={false} stroke="var(--color-line)" strokeDasharray="4 4" />
+              <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 12, fill: "var(--color-muted)" }} tickLine={false} axisLine={false} minTickGap={40} />
+              <YAxis tick={{ fontSize: 12, fill: "var(--color-muted)" }} tickLine={false} axisLine={false} allowDecimals={false} width={48} />
               <Tooltip
                 labelFormatter={(date) => shortDate(String(date))}
                 formatter={(value) => [formatNumber(Number(value)), label]}
-                cursor={{ stroke: "#c4b5fd", strokeWidth: 1 }}
-                contentStyle={{ borderRadius: 12, border: "1px solid #ebe7f7", fontSize: 13, boxShadow: "0 12px 32px rgb(76 29 149 / 0.12)" }}
+                cursor={{ stroke: "var(--color-primary-300)", strokeWidth: 1 }}
+                contentStyle={{ borderRadius: 12, border: "1px solid var(--color-line)", background: "var(--color-surface)", color: "var(--color-ink)", fontSize: 13, boxShadow: "var(--shadow-raised)" }}
               />
-              <Area type="monotone" dataKey={metric} stroke="#7c3aed" strokeWidth={2.5} fill="url(#metricFill)" dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+              <Area type="monotone" dataKey={metric} stroke="var(--color-primary)" strokeWidth={2.5} fill="url(#metricFill)" dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--color-surface)", fill: "var(--color-primary)" }} isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

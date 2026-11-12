@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiFailure, apiUrl } from "@/lib/api";
 
 const GOOGLE_ERRORS: Record<string, string> = {
-  not_allowed: "This Google account isn't allowed to use LocalPilot.",
+  not_allowed: "This Google account isn't allowed to use AX Grow.",
   agency_account: "The agency Google account can't be used to log in. Use your own account.",
   google_denied: "Google sign-in was cancelled.",
   google_unverified: "This Google account's email isn't verified.",
@@ -60,7 +60,7 @@ export default function LoginPage() {
       footer={
         passwordOn ? (
           <>
-            New to LocalPilot?{" "}
+            New to AX Grow?{" "}
             <Link href="/register" className={authLink}>
               Create an account
             </Link>

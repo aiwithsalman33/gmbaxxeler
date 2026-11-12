@@ -47,7 +47,7 @@ function OnboardingProgress({ client }: { client: Client }) {
               <span
                 className={cn(
                   "flex size-6 items-center justify-center rounded-full text-2xs font-semibold",
-                  step.done ? "bg-primary text-white" : isCurrent ? "bg-white text-primary ring-2 ring-primary" : "bg-white text-subtle ring-1 ring-line-strong",
+                  step.done ? "bg-primary text-white" : isCurrent ? "bg-surface text-primary ring-2 ring-primary" : "bg-surface text-subtle ring-1 ring-line-strong",
                 )}
               >
                 {step.done ? <Check className="size-3.5" aria-hidden /> : index + 1}
@@ -156,7 +156,7 @@ export function ClientCard({ client, actions }: { client: Client; actions: Clien
   const strength = client.stats?.strengthScore ?? null;
   const rating = client.stats?.rating ?? null;
   return (
-    <li className="group relative flex flex-col rounded-card border border-line bg-white p-5 shadow-card transition-[border-color,box-shadow] focus-within:border-primary-300 hover:border-primary-300 hover:shadow-raised">
+    <li className="group relative flex flex-col rounded-card border border-line bg-surface p-5 shadow-card transition-[border-color,box-shadow] focus-within:border-primary-300 hover:border-primary-300 hover:shadow-raised">
       <div className="flex items-start gap-3">
         <Avatar name={client.name} size="lg" />
         <div className="min-w-0 flex-1">

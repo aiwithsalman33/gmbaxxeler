@@ -32,7 +32,7 @@ export function TabsTrigger({ className, children, count, ...props }: ComponentP
 /** Pill-style choice between a few options, such as 7d / 28d / 90d. */
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (value: T) => void; options: { value: T; label: string }[]; label: string }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-control border border-line bg-white p-1 shadow-sm">
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-control border border-line bg-surface p-1 shadow-sm">
       {options.map((option) => (
         <button
           key={option.value}

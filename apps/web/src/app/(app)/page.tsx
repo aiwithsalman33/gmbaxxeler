@@ -28,7 +28,7 @@ export default function HomePage() {
   if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
   // Shaped like the dashboard most people land on, so the redirect doesn't jump.
   return (
-    <LoadingBlock label="Opening LocalPilot" className="space-y-6">
+    <LoadingBlock label="Opening AX Grow" className="space-y-6">
       <div className="flex items-center gap-4">
         <Skeleton className="size-14 rounded-full" />
         <div className="space-y-2">

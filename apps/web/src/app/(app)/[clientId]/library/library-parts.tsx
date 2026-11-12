@@ -53,7 +53,7 @@ export function UploadZone({
         onDrop={onDrop}
         aria-describedby="upload-rules"
         className={cn(
-          "group flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-card border-2 border-dashed bg-white px-6 text-center transition-[background-color,border-color,box-shadow] focus-visible:shadow-focus focus-visible:outline-none",
+          "group flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-card border-2 border-dashed bg-surface px-6 text-center transition-[background-color,border-color,box-shadow] focus-visible:shadow-focus focus-visible:outline-none",
           compact ? "py-7" : "py-10 sm:py-12",
           dragging ? "border-primary bg-primary-50 shadow-focus" : "border-line-strong hover:border-primary-300 hover:bg-primary-50/50",
         )}
@@ -133,12 +133,12 @@ export function UploadList({ items, onDismiss, onClearFinished }: { items: Uploa
         )}
       </div>
       <ProgressBar value={(finished / items.length) * 100} label="Upload progress" className="mb-3" />
-      <ul className="grid gap-2 md:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
         {items.map((item) => {
           const status = STATUS[item.status];
           const Icon = status.icon;
           return (
-            <li key={item.id} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", item.status === "failed" ? "border-red-200 bg-bad-soft/60" : "border-line bg-white")}>
+            <li key={item.id} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", item.status === "failed" ? "border-bad-line bg-bad-soft/60" : "border-line bg-surface")}>
               <img src={item.preview} alt="" className="size-10 shrink-0 rounded-lg bg-lavender object-cover" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium" title={item.name}>
@@ -184,7 +184,7 @@ export function ImageTile({
   onDelete: () => void;
 }) {
   return (
-    <li className={cn("group relative overflow-hidden rounded-card border bg-white shadow-card transition-[border-color,box-shadow]", selected ? "border-primary ring-2 ring-primary" : "border-line hover:shadow-raised")}>
+    <li className={cn("group relative overflow-hidden rounded-card border bg-surface shadow-card transition-[border-color,box-shadow]", selected ? "border-primary ring-2 ring-primary" : "border-line hover:shadow-raised")}>
       <button
         type="button"
         aria-pressed={selected}
@@ -197,19 +197,19 @@ export function ImageTile({
           aria-hidden
           className={cn(
             "absolute top-2.5 left-2.5 flex size-6 items-center justify-center rounded-md border-2 shadow-sm transition-[opacity,background-color]",
-            selected ? "border-primary bg-primary text-white opacity-100" : "border-white bg-ink/20 text-transparent backdrop-blur-sm sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
+            selected ? "border-primary bg-primary text-white opacity-100" : "border-white bg-black/25 text-transparent backdrop-blur-sm sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
           )}
         >
           <Check className="size-4" strokeWidth={3} />
         </span>
         <span aria-hidden className="absolute top-2.5 right-2.5">
-          <Badge tone={image.usageCount ? "primary" : "neutral"} className="bg-white/90 backdrop-blur-sm">
+          <Badge tone={image.usageCount ? "primary" : "neutral"} className="bg-surface/90 backdrop-blur-sm">
             {image.usageCount ? `Used ${image.usageCount}×` : "New"}
           </Badge>
         </span>
         <span
           aria-hidden
-          className="absolute inset-x-0 bottom-0 flex translate-y-2 flex-col gap-0.5 bg-gradient-to-t from-ink/85 via-ink/60 to-transparent px-3 pt-10 pb-3 text-left text-white opacity-0 transition-[opacity,transform] group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+          className="absolute inset-x-0 bottom-0 flex translate-y-2 flex-col gap-0.5 bg-gradient-to-t from-black/85 via-black/60 to-transparent px-3 pt-10 pb-3 text-left text-white opacity-0 transition-[opacity,transform] group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
         >
           <span className="truncate text-sm font-semibold">{image.originalName}</span>
           <span className="text-xs text-white/85">
@@ -272,7 +272,7 @@ export function GridSkeleton({ count = 10 }: { count?: number }) {
   return (
     <LoadingBlock label="Loading images" className={GRID}>
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="overflow-hidden rounded-card border border-line bg-white shadow-card">
+        <div key={i} className="overflow-hidden rounded-card border border-line bg-surface shadow-card">
           <Skeleton className="aspect-square rounded-none" />
           <div className="space-y-2 p-3">
             <Skeleton className="h-4 w-3/4 rounded-md" />

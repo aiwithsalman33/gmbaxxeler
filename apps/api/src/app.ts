@@ -89,7 +89,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     limits: { fileSize: LIBRARY_LIMITS.maxBytes + 1, files: 50 },
   });
   await app.register(swagger, {
-    openapi: { info: { title: "LocalPilot API", version: "0.1.0" } },
+    openapi: { info: { title: "AX Grow API", version: "0.1.0" } },
     transform: jsonSchemaTransform,
   });
   await app.register(swaggerUi, { routePrefix: "/api/docs" });

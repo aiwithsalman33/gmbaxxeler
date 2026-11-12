@@ -91,7 +91,7 @@ export function ReviewSettingsDrawer({ clientId, open, onOpenChange }: { clientI
       open={open}
       onOpenChange={onOpenChange}
       title="AI reply settings"
-      description="Choose how much LocalPilot replies on its own for this client."
+      description="Choose how much AX Grow replies on its own for this client."
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
@@ -124,7 +124,7 @@ export function ReviewSettingsDrawer({ clientId, open, onOpenChange }: { clientI
                   key={option.value}
                   className={cn(
                     "flex cursor-pointer gap-3 rounded-xl border p-3.5 transition-colors has-[:focus-visible]:shadow-focus",
-                    selected ? "border-primary bg-primary-50 ring-1 ring-primary" : "border-line bg-white hover:border-primary-300",
+                    selected ? "border-primary bg-primary-50 ring-1 ring-primary" : "border-line bg-surface hover:border-primary-300",
                     !enabled && "cursor-not-allowed",
                   )}
                 >

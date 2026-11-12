@@ -35,7 +35,7 @@ export function QueueSkeleton({ className }: { className?: string }) {
         <Skeleton className="h-9 w-44" />
         <Skeleton className="h-8 w-32" />
       </div>
-      <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
+      <div className="overflow-hidden rounded-card border border-line bg-surface shadow-card">
         {[0, 1, 2, 3].map((n) => (
           <div key={n} className="flex items-center gap-4 border-b border-line px-6 py-3.5 last:border-b-0">
             <Skeleton className="hidden h-4 w-16 sm:block" />

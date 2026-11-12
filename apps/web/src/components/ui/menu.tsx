@@ -14,7 +14,7 @@ export function MenuContent({ className, children, ...props }: ComponentProps<ty
       <Radix.Content
         sideOffset={6}
         align="end"
-        className={cn("z-40 min-w-52 animate-fade-in rounded-xl border border-line bg-white p-1.5 shadow-raised", className)}
+        className={cn("z-40 min-w-52 animate-fade-in rounded-xl border border-line bg-surface p-1.5 shadow-raised", className)}
         {...props}
       >
         {children}

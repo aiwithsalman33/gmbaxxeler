@@ -96,7 +96,7 @@ export function SeoScheduleCard({ clientId, data }: { clientId: string; data: Se
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-ink">Publishing</legend>
-        <div role="radiogroup" aria-label="Publishing" className="grid gap-3 sm:grid-cols-2">
+        <div role="radiogroup" aria-label="Publishing" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {MODES.map(({ value, icon: Icon, title, body: text }) => {
             const on = seoMode === value;
             return (
@@ -108,7 +108,7 @@ export function SeoScheduleCard({ clientId, data }: { clientId: string; data: Se
                 onClick={() => setSeoMode(value)}
                 className={cn(
                   "flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-left transition-[border-color,box-shadow,background-color] focus-visible:shadow-focus focus-visible:outline-none",
-                  on ? "border-primary bg-primary-50 ring-1 ring-primary" : "border-line-strong bg-white hover:border-primary-300",
+                  on ? "border-primary bg-primary-50 ring-1 ring-primary" : "border-line-strong bg-surface hover:border-primary-300",
                 )}
               >
                 <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", on ? "bg-primary text-white" : "bg-primary-50 text-primary")}>

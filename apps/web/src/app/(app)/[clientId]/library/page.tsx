@@ -293,7 +293,7 @@ export default function LibraryPage() {
 
       {chosen.length > 0 && (
         <div role="region" aria-label="Selected images" className="pointer-events-none sticky bottom-4 z-20 mt-6 flex animate-pop-in justify-center">
-          <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-card border border-primary-200 bg-white/95 py-2 pr-2 pl-2.5 shadow-raised backdrop-blur-md sm:gap-3 sm:pl-3">
+          <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-card border border-primary-200 bg-surface/95 py-2 pr-2 pl-2.5 shadow-raised backdrop-blur-md sm:gap-3 sm:pl-3">
             <span className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary px-2 text-sm font-semibold text-white tabular-nums">{chosen.length}</span>
             <p className="mr-1 text-sm font-medium whitespace-nowrap sm:mr-3">selected</p>
             <Button size="sm" variant="secondary" loading={move.isPending} onClick={() => move.mutate(chosen.map((image) => image.id))}>

@@ -34,7 +34,7 @@ export function DemoDataSettings() {
   }
 
   return (
-    <Card className="border-amber-200">
+    <Card className="border-warn-line">
       <CardHeader
         icon={FlaskConical}
         title="Demo data"

@@ -10,7 +10,7 @@ export function Toaster() {
       closeButton
       toastOptions={{
         classNames: {
-          toast: "!rounded-xl !border !border-line !bg-white !text-ink !shadow-raised !font-sans",
+          toast: "!rounded-xl !border !border-line !bg-surface !text-ink !shadow-raised !font-sans",
           description: "!text-muted",
           success: "[&_[data-icon]]:!text-good",
           error: "[&_[data-icon]]:!text-bad",

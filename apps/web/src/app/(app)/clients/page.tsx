@@ -32,7 +32,7 @@ const SIGN_IN_RESULTS: Record<string, { tone: "success" | "error" | "info"; text
   not_found: { tone: "info", text: "That Google account doesn't manage this business" },
   denied: { tone: "error", text: "Google sign-in was cancelled" },
   missing_permission: { tone: "error", text: "Business Profile permission wasn't granted. Tick the box on Google's screen." },
-  no_refresh_token: { tone: "error", text: "Google didn't return a refresh token. Remove LocalPilot from that account's third-party access and try again." },
+  no_refresh_token: { tone: "error", text: "Google didn't return a refresh token. Remove AX Grow from that account's third-party access and try again." },
   expired: { tone: "error", text: "The sign-in took too long. Please try again." },
   redirect_mismatch: { tone: "error", text: "Google rejected the redirect URL. Check Settings > Google." },
   invalid_client: { tone: "error", text: "The Google client ID or secret is wrong. Check Settings > Google." },
@@ -60,12 +60,12 @@ function ActionCard({ icon: Icon, title, body, children }: { icon: typeof Users;
 function ClientsSkeleton() {
   return (
     <LoadingBlock label="Loading clients" className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Skeleton className="h-[168px]" />
         <Skeleton className="h-[168px]" />
       </div>
       <Skeleton className="h-6 w-40" />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2, 3, 4, 5].map((n) => (
           <Skeleton key={n} className="h-[212px] rounded-card" />
         ))}
@@ -312,7 +312,7 @@ export default function ClientsPage() {
       {header}
 
       {!agency && (
-        <Card className="mb-6 flex flex-wrap items-center gap-4 border-primary-200 bg-gradient-to-r from-primary-50 to-white">
+        <Card className="mb-6 flex flex-wrap items-center gap-4 border-primary-200 bg-gradient-to-r from-primary-50 to-surface">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-sm shadow-primary/30">
             <Link2 className="size-5" aria-hidden />
           </div>
@@ -368,7 +368,7 @@ export default function ClientsPage() {
         )}
 
         {unmatched.length > 0 && (
-          <Card className="border-amber-200">
+          <Card className="border-warn-line">
             <CardHeader
               icon={Inbox}
               title={
@@ -454,7 +454,7 @@ export default function ClientsPage() {
               )}
             </div>
             {visible.length > 0 ? (
-              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {visible.map((client) => (
                   <ClientCard key={client.id} client={client} actions={actions} />
                 ))}

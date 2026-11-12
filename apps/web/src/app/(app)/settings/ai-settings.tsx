@@ -148,7 +148,7 @@ export function AiSettings() {
           }
         />
         {settings.isPending && (
-          <LoadingBlock label="Loading AI settings" className="grid gap-4 sm:grid-cols-2">
+          <LoadingBlock label="Loading AI settings" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[0, 1, 2, 3].map((n) => (
               <Skeleton key={n} className="h-[66px]" />
             ))}
@@ -157,7 +157,7 @@ export function AiSettings() {
         {settings.isError && <ErrorState bare error={settings.error} onRetry={() => settings.refetch()} />}
         {data && (
           <form onSubmit={submit}>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="API key" hint={data.connected ? "Leave blank to keep the saved key." : "Starts with sk-"}>
                 {(props) => <Input {...props} type="password" autoComplete="off" placeholder={data.maskedKey ?? "sk-..."} value={apiKey} onChange={(event) => setApiKey(event.target.value)} />}
               </Field>
