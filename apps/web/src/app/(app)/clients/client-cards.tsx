@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, LayoutDashboard, Mail, MoreHorizontal, Pause, Phone, Play, Send, Trash2, Wand2 } from "lucide-react";
+import { ArrowRight, Check, LayoutDashboard, Link2, Mail, MoreHorizontal, Pause, Phone, Play, Send, Trash2, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment } from "react";
@@ -13,6 +13,8 @@ import { cn, formatDate } from "@/lib/utils";
 
 export interface ClientActions {
   onGuide: (client: Client) => void;
+  /** Looks for the business in the connected Google accounts and connects it. */
+  onConnect: (client: Client) => void;
   onPause: (client: Client, paused: boolean) => void;
   onRemove: (client: Client) => void;
   /** Mock mode only. */
@@ -83,7 +85,11 @@ export function PendingClientRow({ client, actions }: { client: Client; actions:
       </div>
       <OnboardingProgress client={client} />
       <div className="flex flex-wrap items-center gap-2 md:justify-end">
-        <Button size="sm" variant={client.guideSentAt ? "secondary" : "primary"} onClick={() => actions.onGuide(client)}>
+        <Button size="sm" onClick={() => actions.onConnect(client)}>
+          <Link2 aria-hidden />
+          Connect
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => actions.onGuide(client)}>
           <Send aria-hidden />
           {client.guideSentAt ? "Resend guide" : "Send guide"}
         </Button>
@@ -115,6 +121,11 @@ function ClientMenu({ client, actions }: { client: Client; actions: ClientAction
         {!pending && (
           <MenuItem icon={<LayoutDashboard />} onSelect={() => router.push(`/${client.id}/dashboard`)}>
             Open dashboard
+          </MenuItem>
+        )}
+        {client.status === "access_removed" && (
+          <MenuItem icon={<Link2 />} onSelect={() => actions.onConnect(client)}>
+            Check &amp; reconnect
           </MenuItem>
         )}
         {!pending && client.status !== "connected" && client.status !== "paused" && (

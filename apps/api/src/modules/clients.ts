@@ -1,7 +1,10 @@
 import { addClientSchema, importClientsSchema, locationRefSchema, matchInvitationSchema, sendGuideSchema, updateClientSchema } from "@localpilot/contracts";
+import { randomToken, sha256 } from "@localpilot/crypto";
 import type { Client } from "@localpilot/db";
 import {
   agencyConnection,
+  autoConnectClient,
+  connectToLocation,
   declineInvitation,
   ensureFolders,
   guideMessage,
@@ -9,7 +12,6 @@ import {
   listAccessibleLocations,
   listUnattachedLocations,
   matchInvitationManually,
-  matchLocationManually,
   pollInvitations,
   queueEmail,
   whatsappLink,
@@ -20,8 +22,11 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { ApiError, type AppContext } from "../context";
 import { scopedClient } from "../guards";
+import { createState } from "../oauth-state";
+import { redirectUri } from "./google";
 
 const idParams = z.object({ id: z.string().uuid() });
+const SIGN_IN_TTL_MS = 15 * 60_000;
 
 export function clientRoutes(ctx: AppContext) {
   const { db, deps } = ctx;
@@ -139,7 +144,30 @@ export function clientRoutes(ctx: AppContext) {
     });
 
     app.post("/clients/:id/match-location", { schema: { params: idParams, body: locationRefSchema } }, async (request) => {
-      return matchLocationManually(deps, await scopedClient(ctx, request, request.params.id), request.body);
+      return connectToLocation(deps, await scopedClient(ctx, request, request.params.id), request.body);
+    });
+
+    // Looks for the business in every connected Google account and in pending Manager invitations.
+    app.post("/clients/:id/auto-connect", { schema: { params: idParams }, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request) => {
+      const client = await scopedClient(ctx, request, request.params.id);
+      return autoConnectClient(deps, client.id);
+    });
+
+    // Signs in with a Google account that already has Manager or Owner access to this business.
+    app.post("/clients/:id/google-connect", { schema: { params: idParams }, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request) => {
+      const client = await scopedClient(ctx, request, request.params.id);
+      const invite = await db.clientInvite.create({
+        data: {
+          workspaceId: client.workspaceId,
+          clientId: client.id,
+          contactEmail: client.contactEmail,
+          tokenHash: sha256(randomToken()),
+          expiresAt: new Date(Date.now() + SIGN_IN_TTL_MS),
+        },
+      });
+      const { state, codeChallenge } = await createState(ctx, { purpose: "invite", workspaceId: client.workspaceId, userId: request.auth.userId, inviteId: invite.id });
+      const url = await deps.gbp.authUrl({ state, redirectUri: redirectUri(ctx), codeChallenge, loginHint: client.contactEmail });
+      return { url };
     });
 
     app.get("/locations", async (request) => {

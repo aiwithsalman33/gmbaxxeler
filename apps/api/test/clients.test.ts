@@ -1,5 +1,5 @@
 import { MockGbpAdapter, sampleDataAllowed } from "@localpilot/gbp";
-import { removeAllDemoData, sendDueReminders, syncClient } from "@localpilot/services";
+import { removeAllDemoData, removeMockData, sendDueReminders, syncClient } from "@localpilot/services";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadEnv } from "../src/config";
 import { connectGoogle, createHarness, login, OTHER_EMAIL, resetDb, type Cookies, type Harness } from "./helpers";
@@ -143,6 +143,70 @@ describe("manager invitation flow", () => {
   });
 });
 
+describe("auto connect after adding a client", () => {
+  const autoConnect = async (id: string) => (await api("POST", `/clients/${id}/auto-connect`)).json();
+
+  it("connects at once when the agency account already manages a business with that name", async () => {
+    const client = await addClient("Sunrise Dental Clinic", { contactEmail: "owner@gmail.com" });
+    const result = await autoConnect(client.id);
+    expect(result).toMatchObject({ status: "connected", locationTitle: "Sunrise Dental Clinic", googleAccountEmail: "agency.demo@localpilot.dev" });
+    expect((await api("GET", `/clients/${client.id}`)).json()).toMatchObject({ status: "connected", matchMethod: "auto_name" });
+  });
+
+  it("connects by the business phone number", async () => {
+    const client = await addClient("Named Differently", { contactPhone: "+919800000003" });
+    expect(await autoConnect(client.id)).toMatchObject({ status: "connected", locationTitle: "Metro Fitness Studio" });
+    expect((await api("GET", `/clients/${client.id}`)).json().matchMethod).toBe("auto_phone");
+  });
+
+  it("only suggests a close name, and the admin picks it", async () => {
+    const client = await addClient("Sunrise Dental", { contactEmail: "owner@gmail.com" });
+    const result = await autoConnect(client.id);
+    expect(result.status).toBe("choose");
+    expect(result.candidates[0]).toMatchObject({ title: "Sunrise Dental Clinic", googleAccountEmail: "agency.demo@localpilot.dev" });
+    expect((await api("GET", `/clients/${client.id}`)).json().status).toBe("invited");
+
+    const [pick] = result.candidates;
+    const matched = await api("POST", `/clients/${client.id}/match-location`, { accountId: pick.accountId, locationId: pick.locationId });
+    expect(matched.json()).toMatchObject({ status: "connected", matchMethod: "manual" });
+    expect(await autoConnect(client.id)).toMatchObject({ status: "connected" });
+  });
+
+  it("says what is missing when nothing matches", async () => {
+    const client = await addClient("Totally Unknown Bakery", { contactEmail: "Manager@Gmail.com" });
+    expect(await autoConnect(client.id)).toMatchObject({ status: "waiting", reason: "not_found", agencyEmail: "agency.demo@localpilot.dev", canSignInAs: "Manager@Gmail.com" });
+  });
+
+  it("accepts a Manager invitation the client already sent", async () => {
+    const client = await addClient("Harbor View Dental");
+    await api("POST", `/dev/mock/clients/${client.id}/invite`);
+    expect(await autoConnect(client.id)).toMatchObject({ status: "connected" });
+  });
+
+  it("signs in with a Gmail that has Manager access and connects that business", async () => {
+    const client = await addClient("Lakeside Physio", { contactEmail: "manager@gmail.com" });
+    const { url } = (await api("POST", `/clients/${client.id}/google-connect`)).json();
+    const callback = new URL(url);
+    const done = await h.app.inject({ method: "GET", url: callback.pathname + callback.search });
+    expect(done.headers.location).toContain(`/clients?google=connected&client=${client.id}`);
+
+    expect((await api("GET", `/clients/${client.id}`)).json()).toMatchObject({ status: "connected", matchMethod: "auto_name" });
+    const connections = (await api("GET", "/google/connections")).json();
+    expect(connections.map((c: { source: string }) => c.source).sort()).toEqual(["agency", "invite"]);
+  });
+
+  it("finds later clients through a Manager account signed in earlier", async () => {
+    const first = await addClient("Lakeside Physio", { contactEmail: "manager@gmail.com" });
+    const { url } = (await api("POST", `/clients/${first.id}/google-connect`)).json();
+    const callback = new URL(url);
+    await h.app.inject({ method: "GET", url: callback.pathname + callback.search });
+    await api("DELETE", `/google/connections/${(await h.ctx.db.googleConnection.findFirstOrThrow({ where: { source: "agency" } })).id}`);
+
+    const second = await addClient("Green Leaf Cafe", { contactEmail: "owner@gmail.com" });
+    expect(await autoConnect(second.id)).toMatchObject({ status: "connected", googleAccountEmail: expect.stringMatching(/^client-\d+@example\.com$/) });
+  });
+});
+
 describe("reminders", () => {
   it("sends day 2 and day 5 once each, then stops on connect", async () => {
     const client = await addClient("Harbor View Dental");
@@ -263,7 +327,7 @@ describe("mock data", () => {
     await empty.ctx.db.$disconnect();
   });
 
-  it("is allowed in production, for use until Google approves API access", () => {
+  it("is never used in production: mock settings fall back to real Google and OpenAI", () => {
     const production = {
       APP_ENV: "production",
       DATABASE_URL: "postgresql://user:password@postgres:5432/localpilot",
@@ -281,7 +345,7 @@ describe("mock data", () => {
       SMTP_PASS: "p",
       MAIL_FROM: "x@example.com",
     };
-    expect(() => loadEnv({ ...production, GBP_ADAPTER: "mock", AI_ADAPTER: "mock" })).not.toThrow();
+    expect(loadEnv({ ...production, GBP_ADAPTER: "mock", AI_ADAPTER: "mock" })).toMatchObject({ GBP_ADAPTER: "real", AI_ADAPTER: "openai" });
     expect(() => loadEnv({ ...production, GBP_ADAPTER: "real", AI_ADAPTER: "openai" })).not.toThrow();
   });
 });
@@ -300,9 +364,10 @@ describe("demo data", () => {
       SMTP_PASS: "p",
       MAIL_FROM: "x@example.com",
     });
+    // Production ignores GBP_ADAPTER=mock from the harness, so no fake Google exists to seed.
+    expect(prod.ctx.deps.gbp.name).toBe("real");
     await resetDb(prod);
     const session = await login(prod);
-    await connectGoogle(prod, session);
     const response = await prod.app.inject({ method: "GET", url: "/api/v1/locations/unattached", cookies: session });
     expect(response.json()).toEqual([]);
     await prod.app.close();
@@ -338,6 +403,31 @@ describe("demo data", () => {
     const result = await removeAllDemoData(h.ctx.deps);
     expect(result.clients).toBe(10);
     expect((await api("GET", "/clients")).json()).toEqual([]);
+  });
+
+  it("removes everything mock mode made when switching to real Google, keeping typed-in clients", async () => {
+    const typed = await addClient("Harbor View Dental", { contactPhone: "+919876500000", contactEmail: "owner@gmail.com", address: ADDRESS, notes: "VIP" });
+    await api("POST", `/dev/mock/clients/${typed.id}/invite`);
+    await api("POST", "/clients/check-invitations");
+    expect((await api("GET", `/clients/${typed.id}`)).json().status).toBe("connected");
+    await importFirst(2);
+    const job = await h.ctx.db.scheduledJob.create({
+      data: { workspaceId: typed.workspaceId, clientId: typed.id, type: "photo", runAt: new Date(), status: "published", simulated: true, idempotencyKey: "mock-test-job" },
+    });
+
+    const result = await removeMockData(h.ctx.deps);
+    expect(result).toMatchObject({ clients: 2, connections: 1, clientsReset: 1, simulatedJobs: 1 });
+
+    const kept = await h.ctx.db.client.findUniqueOrThrow({ where: { id: typed.id } });
+    expect(kept).toMatchObject({ name: "Harbor View Dental", contactPhone: "+919876500000", contactEmail: "owner@gmail.com", notes: "VIP", status: "invited", gbpLocationId: null, connectionId: null });
+    expect(await h.ctx.db.client.count({ where: { workspaceId: typed.workspaceId } })).toBe(1);
+    expect(await h.ctx.db.googleConnection.count()).toBe(0);
+    expect(await h.ctx.db.scheduledJob.findUnique({ where: { id: job.id } })).toBeNull();
+    expect(await h.ctx.db.metricSnapshot.count({ where: { clientId: typed.id } })).toBe(0);
+    expect(await h.ctx.db.mockGbpState.count()).toBe(0);
+    expect(await h.ctx.db.libraryFolder.count({ where: { clientId: typed.id } })).toBeGreaterThan(0);
+    // Repeating is a no-op.
+    expect(await removeMockData(h.ctx.deps)).toMatchObject({ clients: 0, connections: 0, clientsReset: 0, simulatedJobs: 0 });
   });
 });
 

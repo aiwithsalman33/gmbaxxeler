@@ -52,14 +52,13 @@ Generate each secret with `openssl rand -hex 32`.
 
 Postgres and MinIO run inside Docker, so you don't need to set anything for them. Neither publishes a port, and Caddy only serves public images from MinIO, read-only. The compose file builds the database connection itself. If you do set `POSTGRES_PASSWORD` or `MINIO_SECRET_KEY`, keep the same value afterwards, because each volume keeps the one it first started with. Use hex for `POSTGRES_PASSWORD`, because characters like `@ : / # ?` break the database URL.
 
-For the current mock setup, also add:
+Set the Gmail that holds Manager access to your clients' profiles:
 
 ```env
-AI_ADAPTER=mock
-GBP_ADAPTER=mock
-MOCK_SAMPLE_DATA=true
-AGENCY_GOOGLE_EMAIL=baranikumargd2@gmail.com
+AGENCY_GOOGLE_EMAIL=<your agency Gmail>
 ```
+
+Remove `GBP_ADAPTER=mock`, `AI_ADAPTER=mock` and `MOCK_SAMPLE_DATA` if an older setup added them. Production ignores them and always uses real Google and OpenAI.
 
 Optional, and needed to send email:
 
@@ -78,7 +77,9 @@ The API won't start in production without the required values or with developmen
 
 Without SMTP, email is off. Signing in with the seeded account works, but password resets, invites and verification emails can't be sent, and those attempts show as failed in the mail log.
 
-Mock mode is for now, while Google hasn't approved Business Profile API access. Everything in it is simulated, and Settings > Google shows "API access: not approved". For real AI text, set `AI_ADAPTER=openai` and save a key in Account Settings.
+On every start the API removes anything an earlier mock setup left behind: sample businesses, the fake Google connection, simulated posts and photos, mock AI drafts, and invented reviews and metrics. Clients you typed in are kept and go back to waiting until they're connected to their real profile. The startup log says what was removed.
+
+Save an OpenAI key in Account Settings so SEO posts and review replies can be written.
 
 `SEED_ADMIN_*` creates a verified owner on first start, so you can log in before email is confirmed working. It never changes an existing account. You can clear the password from Dokploy after your first login.
 
@@ -117,8 +118,8 @@ Google login works as soon as credentials are set. Business Profile access needs
 1. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or enter them in Settings > Google.
 2. Add both redirect URIs shown in Settings > Google to your OAuth client.
 3. Add `axxeler@gmail.com` and `baranikumargd2@gmail.com` as Test users.
-4. When Google approves API access, set `GBP_ADAPTER=real` and `AI_ADAPTER=openai`, then redeploy.
-5. In Settings > Google, connect `baranikumargd2@gmail.com` and import locations.
+4. In Google Cloud, enable My Business Account Management API, My Business Business Information API, Business Profile Performance API and Google My Business API. Business Profile calls fail with a zero quota until Google approves API access for the project; Settings > Google then shows "API access: not approved".
+5. In Settings > Google, connect your agency Gmail. Every account and location it manages is listed, and waiting clients with a matching phone or business name connect by themselves.
 
 Test with one real profile first: one photo, one post and one review reply.
 

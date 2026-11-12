@@ -26,7 +26,7 @@ export function AddClientDialog({ open, onOpenChange, onCreated }: { open: boole
     },
     onSuccess: ({ client }) => {
       setForm(EMPTY);
-      toast.success(`${client.name} added`, { description: "Now send them the guide." });
+      toast.success(`${client.name} added`, { description: "Checking Google to connect it." });
       onCreated(client);
     },
   });
@@ -41,14 +41,14 @@ export function AddClientDialog({ open, onOpenChange, onCreated }: { open: boole
       open={open}
       onOpenChange={onOpenChange}
       title="Add client"
-      description="Enter a mobile number, a Gmail address, or both. We'll write a guide asking them to add your agency as Manager."
+      description="Enter the business name with its mobile number, Gmail, or both. We then check your Google accounts and connect it automatically, or help you request Manager access."
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button type="submit" form="add-client-form" loading={create.isPending}>
-            Add client
+            Add and connect
           </Button>
         </>
       }
@@ -59,9 +59,14 @@ export function AddClientDialog({ open, onOpenChange, onCreated }: { open: boole
           <Field label="Client mobile" hint="With country code">
             {(props) => <Input {...props} type="tel" placeholder="+919876543210" value={form.contactPhone} onChange={set("contactPhone")} />}
           </Field>
-          <Field label="Client Gmail">{(props) => <Input {...props} type="email" placeholder="owner@gmail.com" value={form.contactEmail} onChange={set("contactEmail")} />}</Field>
+          <Field label="Gmail" hint="Owner's, or one with Manager access">
+            {(props) => <Input {...props} type="email" placeholder="owner@gmail.com" value={form.contactEmail} onChange={set("contactEmail")} />}
+          </Field>
         </div>
-        <Field label="Business address" hint="Needed to match their invitation and connect automatically.">
+        <p className="text-xs text-muted">
+          The mobile number matches the phone on the Business Profile. If the Gmail already has Manager access, you can sign in with it on the next step to connect at once.
+        </p>
+        <Field label="Business address" hint="Optional. Helps match a Manager invitation, which carries no phone number.">
           {(props) => <Input {...props} value={form.address} onChange={set("address")} />}
         </Field>
         <Field label="Notes">{(props) => <Textarea {...props} rows={2} className="min-h-16" value={form.notes} onChange={set("notes")} />}</Field>

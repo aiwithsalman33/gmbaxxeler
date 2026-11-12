@@ -64,3 +64,70 @@ export async function removeAllDemoData(deps: Pick<Deps, "db" | "storage" | "log
   }
   return total;
 }
+
+/** Google subjects the mock adapter hands out. A real Google subject is a long number. */
+const MOCK_SUBJECT = /^mock-(agency-subject|client-\d+)$/;
+const MOCK_LOCATION_PREFIX = "mock-loc-";
+/** A sentence only the mock AI writes, so its drafts can be found without a flag. */
+const MOCK_POST_SENTENCE = "because every visit is handled with care, clear advice and attention to detail";
+
+export interface MockRemoval extends DemoRemoval {
+  connections: number;
+  clientsReset: number;
+  simulatedJobs: number;
+  mockPosts: number;
+}
+
+/**
+ * Runs on every start with the real Google adapter, so nothing simulated survives the switch
+ * away from mock mode. It removes the sample businesses, the fake Google connections, what the
+ * mock "published", drafts the mock AI wrote, and reviews and metrics the mock invented.
+ *
+ * Clients someone typed in are kept, with their contact details, notes, library, knowledge base
+ * and schedules. Ones the mock had connected go back to waiting, so they can be connected to the
+ * real Business Profile. Safe to repeat: with nothing to remove it does nothing.
+ */
+export async function removeMockData(deps: Pick<Deps, "db" | "storage" | "logger">): Promise<MockRemoval> {
+  const { db } = deps;
+  const demo = await removeAllDemoData(deps);
+
+  const connectionIds = (await db.googleConnection.findMany({ where: { googleSubject: { startsWith: "mock-" } }, select: { id: true, googleSubject: true } }))
+    .filter((connection) => MOCK_SUBJECT.test(connection.googleSubject))
+    .map((connection) => connection.id);
+  const clientIds = (
+    await db.client.findMany({
+      where: { OR: [{ connectionId: { in: connectionIds } }, { gbpLocationId: { startsWith: MOCK_LOCATION_PREFIX } }] },
+      select: { id: true },
+    })
+  ).map((client) => client.id);
+
+  // Drafts the mock AI wrote that never went out: drop them, and their jobs get a real draft later.
+  const mockDrafts = await db.post.findMany({ where: { gbpPostName: null, summary: { contains: MOCK_POST_SENTENCE } }, select: { id: true, jobId: true } });
+
+  const [simulatedJobs, mockPosts] = await db.$transaction([
+    // Jobs the mock adapter "published": nothing reached Google. Their posts and logs cascade.
+    db.scheduledJob.deleteMany({ where: { simulated: true } }),
+    db.post.deleteMany({ where: { id: { in: mockDrafts.map((post) => post.id) } } }),
+    db.scheduledJob.updateMany({
+      where: { id: { in: mockDrafts.map((post) => post.jobId) }, status: { in: ["scheduled", "awaiting_approval"] } },
+      data: { status: "scheduled", attempts: 0, error: null },
+    }),
+    db.aiUsage.deleteMany({ where: { model: "mock" } }),
+    // Data the mock invented for clients it had connected.
+    db.review.deleteMany({ where: { clientId: { in: clientIds } } }),
+    db.metricSnapshot.deleteMany({ where: { clientId: { in: clientIds } } }),
+    db.locationStats.deleteMany({ where: { clientId: { in: clientIds } } }),
+    db.notification.deleteMany({ where: { clientId: { in: clientIds } } }),
+    db.gbpInvitation.deleteMany({ where: { OR: [{ matchedClientId: { in: clientIds } }, { connectionId: { in: connectionIds } }] } }),
+    db.clientProfile.updateMany({ where: { clientId: { in: clientIds } }, data: { gbpSnapshot: {} } }),
+    db.client.updateMany({
+      where: { id: { in: clientIds } },
+      data: { status: "invited", connectionId: null, gbpAccountId: null, gbpLocationId: null, matchMethod: null, connectedAt: null, accessLostAt: null },
+    }),
+    db.clientInvite.deleteMany({ where: { connectionId: { in: connectionIds } } }),
+    db.googleConnection.deleteMany({ where: { id: { in: connectionIds } } }),
+    db.mockGbpState.deleteMany({}),
+  ]);
+
+  return { ...demo, connections: connectionIds.length, clientsReset: clientIds.length, simulatedJobs: simulatedJobs.count, mockPosts: mockPosts.count };
+}

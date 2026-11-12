@@ -17,7 +17,8 @@ const envSchema = z.object({
   SIGNUP_ALLOWED_EMAILS: z.string().default(""),
   SEED_ADMIN_EMAIL: z.string().optional(),
   SEED_ADMIN_PASSWORD: z.string().optional(),
-  GBP_ADAPTER: z.enum(["mock", "real"]).default("mock"),
+  // mock exists only for automated tests and local development; production always uses real.
+  GBP_ADAPTER: z.enum(["mock", "real"]).default("real"),
   MOCK_SAMPLE_DATA: z.string().default("false").transform((value) => value === "true"),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -78,10 +79,25 @@ function productionProblems(env: Env): string[] {
   const problems: (string | false)[] = [
     env.JWT_SECRET === DEV_JWT_SECRET && "JWT_SECRET is the development default",
     env.ENCRYPTION_KEY === DEV_ENCRYPTION_KEY && "ENCRYPTION_KEY is the development default",
-    env.AI_ADAPTER === "mock" && env.GBP_ADAPTER === "real" && "AI_ADAPTER cannot be mock with GBP_ADAPTER=real",
     !DATABASE_URL_SHAPE.test(env.DATABASE_URL) && `DATABASE_URL is invalid: ${REQUIREMENTS.DATABASE_URL}`,
   ];
   return problems.filter((problem) => typeof problem === "string");
+}
+
+/** Values production overrode, so startup can say so. Never secrets. */
+export const productionOverrides: string[] = [];
+
+/**
+ * Production never simulates Google or AI. Older deploys were told to set
+ * GBP_ADAPTER=mock and AI_ADAPTER=mock, so those values are replaced, not fatal.
+ */
+function forceRealInProduction(env: Env): Env {
+  productionOverrides.length = 0;
+  if (env.APP_ENV !== "production") return env;
+  if (env.GBP_ADAPTER === "mock") productionOverrides.push("GBP_ADAPTER=mock is ignored in production; using real Google");
+  if (env.AI_ADAPTER === "mock") productionOverrides.push("AI_ADAPTER=mock is ignored in production; using OpenAI");
+  if (env.MOCK_SAMPLE_DATA) productionOverrides.push("MOCK_SAMPLE_DATA=true is ignored in production");
+  return { ...env, GBP_ADAPTER: "real", AI_ADAPTER: "openai", MOCK_SAMPLE_DATA: false };
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
@@ -96,7 +112,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (source.ENCRYPTION_KEY && !validKey(source.ENCRYPTION_KEY)) problems.push(`ENCRYPTION_KEY is invalid: ${REQUIREMENTS.ENCRYPTION_KEY}`);
   if (parsed.success && parsed.data.APP_ENV === "production") problems.push(...productionProblems(parsed.data));
   if (problems.length) throw new EnvError([...new Set(problems)]);
-  return parsed.data as Env;
+  return forceRealInProduction(parsed.data as Env);
 }
 
 export function signupAllowed(env: Env, email: string): boolean {

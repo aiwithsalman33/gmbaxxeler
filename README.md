@@ -32,44 +32,26 @@ With `MAIL_PROVIDER=dev`, every email is printed to the worker log instead of be
 
 Five wrong passwords lock an account for 15 minutes. Forgot password works from the login page.
 
-### Try the client flow with the mock adapter
+### Connect Google and your clients
 
-The mock Google account starts empty. Add `MOCK_SAMPLE_DATA=true` to `.env` before first connecting Google to get 10 sample businesses across two accounts, with reviews and metrics. `GBP_ADAPTER=mock` also works in production, so the app stays usable until Google approves API access. Nothing in mock mode reaches Google.
+The app always talks to real Google Business Profile. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (or enter them in **Settings > Google**), and save an OpenAI key in **Account Settings**. See [Going live with Google](#going-live-with-google) for the Cloud project setup.
 
-1. In **Account Settings**, choose **Connect Google**.
-2. In **Clients**, tick three locations and import them. Switch between them from the top-right dropdown.
-3. Choose **Add client** and enter a business name and an email or mobile number. **Send invite by email** sends the guide. **Copy message** is there for WhatsApp.
-4. Choose **Simulate invite**, then **Check now**. The worker also does this every 10 minutes.
-5. A client with a matching name and address connects by itself. Anything less goes to **Unmatched invitations** for you to accept. **Simulate invitations** creates one of each.
+1. In **Settings > Google**, connect the agency Gmail. Every account and location it manages is listed.
+2. In **Clients**, choose **Import from Google** to bring in businesses you already manage.
+3. Or choose **Add client**, enter the business name with a mobile number and/or Gmail, then **Add and connect**. A business your accounts already manage connects at once by its phone number or exact name. A close name is offered for you to pick.
+4. If it isn't found, sign in with a Gmail that already has Manager access to it (**Connect with Google**), or send the guide so the owner adds you as Manager. Invitations are checked every 10 minutes, or press **Check now**.
 
-To test the review path, add a client, then call `POST /api/v1/dev/mock/invitations` with an unrelated `locationName`. To test lost access, call `POST /api/v1/dev/mock/clients/:id/revoke` and press **Refresh** on the dashboard.
+### Photos, SEO posts and reviews
 
-### Try the photo scheduler
+- **Photos:** upload images to the Photos folder in **Library**, then set days, a time and a count in **Photos**. The worker uploads due photos every minute.
+- **SEO posts:** fill in the **Knowledge base**, upload images to SEO Post Images, and set a schedule in **SEO Posts**. In draft mode posts are written 48 hours ahead and never publish unapproved; in auto mode they are written about 15 minutes ahead and publish on time.
+- **Reviews:** choose **Sync** in **Reviews**. The first sync imports history quietly. With **AI auto-reply** on, a 1 to 3 star review never publishes on its own; it becomes a draft and alerts you.
 
-1. In **Library**, upload a few images to the Photos folder.
-2. In **Photos**, choose days, a time, a timezone and a count, then save. The next 14 days are queued, and each job shows the image reserved for it.
-3. Choose **Publish next (mock)**. The **History** tab shows the original and new file names.
+Failed jobs are listed under **Account Settings > View failed jobs** with Google's error.
 
-The worker checks for due uploads every minute. To test failures, call `POST /api/v1/dev/mock/fail-uploads` with `{"count": 4}` before publishing, then see **Account Settings > View failed jobs**.
+### Automated tests
 
-With `AI_ADAPTER=mock`, names are built from the business details without calling OpenAI. Set `AI_ADAPTER=openai` and save a key in **Account Settings** to use a real vision model.
-
-### Try SEO posts
-
-1. Open **Knowledge base** and fill in the business details.
-2. In **Library**, upload images to SEO Post Images.
-3. In **SEO Posts**, set a schedule and a button link, then save.
-4. Choose **Write next (mock)**, then open the draft to edit and approve it. Choose **Publish next (mock)** to send it.
-
-In draft mode, posts are written 48 hours ahead (adjustable per client), and an unapproved post never publishes. In auto mode they are written about 15 minutes ahead and publish on time.
-
-### Try reviews
-
-1. Open **Reviews** and choose **Sync**. The first sync imports history quietly, with no replies or alerts.
-2. Turn on **AI auto-reply**, choose a mode and save.
-3. Call `POST /api/v1/dev/mock/clients/:id/reviews` with `{"rating": 5}` or `{"rating": 1}`.
-
-A 1 to 3 star review never publishes on its own, in any mode. It becomes a draft and alerts you straight away.
+The API tests and the e2e suite stand in for Google with a mock adapter, so they never touch real profiles. It is only used when a non-production stack sets `GBP_ADAPTER=mock` (the test harness does this). Production ignores `GBP_ADAPTER=mock`, `AI_ADAPTER=mock` and `MOCK_SAMPLE_DATA`, and on every start with real Google the API deletes anything mock mode left in the database.
 
 ## How publishing stays safe
 
@@ -112,7 +94,7 @@ The steps are in **Settings > Google**, along with a live status checklist. Add 
 - `https://gmb.axxeler.in/api/v1/google/oauth/callback`
 - `https://gmb.axxeler.in/api/v1/auth/google/callback`
 
-Set `GBP_ADAPTER=real` once Google approves Business Profile API access. Until then, every Business Profile call fails with a zero quota, and Settings shows "API access: not approved". Google login doesn't need this approval.
+In Google Cloud, enable My Business Account Management API, My Business Business Information API, Business Profile Performance API and Google My Business API (posts, photos and reviews use it). Business Profile calls fail with a zero quota until Google approves API access for the project, and Settings shows "API access: not approved". Google login doesn't need this approval.
 
 While the OAuth consent screen is in Testing mode, refresh tokens expire after 7 days. Add the agency account as a Test user and reconnect it weekly until the app is published. Both accounts must be Test users to sign in.
 
