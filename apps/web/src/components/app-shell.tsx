@@ -62,11 +62,11 @@ function NavSection({ title, links, pathname, onNavigate }: { title: string; lin
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus-visible:shadow-focus focus-visible:outline-none",
-                  active ? "bg-white/[0.09] text-white shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]" : "text-sidebar-ink hover:bg-white/[0.05] hover:text-white",
+                  active ? "bg-sidebar-active text-sidebar-strong" : "text-sidebar-ink hover:bg-sidebar-hover hover:text-sidebar-strong",
                 )}
               >
                 {active && <span aria-hidden className="bg-brand absolute top-2 bottom-2 left-0 w-[3px] rounded-full" />}
-                <Icon className={cn("size-[18px] shrink-0", active ? "text-primary-300" : "text-sidebar-muted group-hover:text-sidebar-ink")} aria-hidden />
+                <Icon className={cn("size-[18px] shrink-0", active ? "text-primary-600" : "text-sidebar-muted group-hover:text-sidebar-ink")} aria-hidden />
                 {label}
               </Link>
             </li>
@@ -77,7 +77,7 @@ function NavSection({ title, links, pathname, onNavigate }: { title: string; lin
   );
 }
 
-/** Light / dark / system, as a small segmented control for the dark sidebar. */
+/** Light / dark / system, as a small segmented control for the sidebar. */
 function ThemeSwitch() {
   const theme = useTheme();
   return (
@@ -92,7 +92,7 @@ function ThemeSwitch() {
           onClick={() => setTheme(value)}
           className={cn(
             "flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg text-2xs font-medium transition-colors focus-visible:shadow-focus focus-visible:outline-none",
-            theme === value ? "bg-white/[0.1] text-white" : "text-sidebar-muted hover:text-white",
+            theme === value ? "bg-sidebar text-sidebar-strong shadow-sm" : "text-sidebar-muted hover:text-sidebar-strong",
           )}
         >
           <Icon className="size-3.5" aria-hidden />
@@ -107,9 +107,9 @@ function SidebarBody({ clientLinks, agencyLinks, pathname, workspace, onNavigate
   return (
     <>
       {/* Soft brand glow behind the logo, like the logo file's lighting. */}
-      <div aria-hidden className="pointer-events-none absolute -top-24 -left-16 size-64 rounded-full bg-primary-600/25 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -top-24 -left-16 size-64 rounded-full bg-primary-500/15 blur-3xl" />
       <Link href="/" onClick={onNavigate} className="relative mb-8 block rounded-xl px-2 focus-visible:shadow-focus focus-visible:outline-none">
-        <Logo onDark tagline />
+        <Logo tagline />
       </Link>
       <nav aria-label="Main" className="relative -mx-1 flex flex-1 flex-col gap-7 overflow-y-auto px-1">
         <NavSection title="Client" links={clientLinks} pathname={pathname} onNavigate={onNavigate} />
@@ -119,7 +119,7 @@ function SidebarBody({ clientLinks, agencyLinks, pathname, workspace, onNavigate
         <ThemeSwitch />
         <div className="rounded-xl border border-sidebar-line bg-sidebar-2 px-3 py-2.5">
           <p className="text-2xs font-medium tracking-wide text-sidebar-muted uppercase">Workspace</p>
-          <p className="truncate text-sm font-semibold text-white">{workspace}</p>
+          <p className="truncate text-sm font-semibold text-sidebar-strong">{workspace}</p>
         </div>
       </div>
     </>
@@ -238,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[17.5rem] max-w-[85vw] animate-slide-in-left flex-col overflow-hidden bg-sidebar px-4 py-6 shadow-raised focus:outline-none lg:hidden">
             <Dialog.Title className="sr-only">Navigation</Dialog.Title>
             <Dialog.Description className="sr-only">Main navigation</Dialog.Description>
-            <Dialog.Close aria-label="Close navigation" className="absolute top-6 right-3 z-10 cursor-pointer rounded-lg p-1.5 text-sidebar-muted hover:bg-white/10 hover:text-white">
+            <Dialog.Close aria-label="Close navigation" className="absolute top-6 right-3 z-10 cursor-pointer rounded-lg p-1.5 text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-strong">
               <X className="size-5" />
             </Dialog.Close>
             <SidebarBody {...body} onNavigate={() => setMobileOpen(false)} />

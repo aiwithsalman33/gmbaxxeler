@@ -42,12 +42,15 @@
   --color-line: #e8e6f3;
   --color-line-strong: #d6d2ea;
 
-  /* The sidebar stays dark in both themes, like the logo. */
-  --color-sidebar: #0d0c1d;
-  --color-sidebar-2: #16152b;
-  --color-sidebar-ink: #c8c6e2;
-  --color-sidebar-muted: #7f7c9e;
-  --color-sidebar-line: #232140;
+  /* Sidebar: light in the light theme, near-black (like the logo) in the dark theme. */
+  --color-sidebar: #ffffff;
+  --color-sidebar-2: #f6f5fc;
+  --color-sidebar-ink: #4a4766;
+  --color-sidebar-muted: #8d8aa8;
+  --color-sidebar-line: #e8e6f3;
+  --color-sidebar-strong: #16142b;
+  --color-sidebar-hover: #f3f1ff;
+  --color-sidebar-active: #ece8ff;
 
   /* Status: base, soft fill, border and text on the soft fill. */
   --color-good: #15803d;
@@ -155,9 +158,14 @@
   --color-line: #242242;
   --color-line-strong: #34315a;
 
-  --color-sidebar: #07061a;
-  --color-sidebar-2: #12112a;
-  --color-sidebar-line: #1d1b38;
+  --color-sidebar: #0b0a1e;
+  --color-sidebar-2: #14132c;
+  --color-sidebar-ink: #c8c6e2;
+  --color-sidebar-muted: #7f7c9e;
+  --color-sidebar-line: #1f1d3b;
+  --color-sidebar-strong: #ffffff;
+  --color-sidebar-hover: rgb(255 255 255 / 0.05);
+  --color-sidebar-active: rgb(255 255 255 / 0.09);
 
   --color-good: #4ade80;
   --color-good-soft: #0d2a1b;
@@ -240,6 +248,27 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Tailwind v4 gives buttons the default arrow; anything clickable shows the hand instead. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="option"],
+  [role="radio"],
+  [role="switch"],
+  [role="checkbox"],
+  select:not(:disabled),
+  summary,
+  label[for],
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled) {
+    cursor: pointer;
   }
 }
 
