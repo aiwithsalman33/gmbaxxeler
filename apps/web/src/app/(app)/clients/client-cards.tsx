@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, LayoutDashboard, Link2, Mail, MoreHorizontal, Pause, Phone, Play, Send, Trash2, Wand2 } from "lucide-react";
+import { ArrowRight, Check, LayoutDashboard, Link2, Mail, MapPin, MoreHorizontal, Pause, Phone, Play, Send, Trash2, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment } from "react";
@@ -165,7 +165,16 @@ export function ClientCard({ client, actions }: { client: Client; actions: Clien
               {client.name}
             </Link>
           </h3>
-          <p className="mt-0.5 truncate text-xs text-muted">{client.address ?? "No address on file"}</p>
+          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted">
+            <MapPin className="size-3 shrink-0" aria-hidden />
+            <span className="truncate">{client.address ?? "No address on file"}</span>
+          </p>
+          {client.contactPhone && (
+            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted">
+              <Phone className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{client.contactPhone}</span>
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <StatusBadge status={client.status} />
             {client.demo && <DemoBadge />}

@@ -230,3 +230,18 @@ export async function declineInvitation(deps: Deps, invitation: GbpInvitation): 
     data: { status: "declined", resolvedAt: new Date() },
   });
 }
+
+/**
+ * Accepts an invitation that matches no waiting client, such as a business inviting the agency
+ * directly. The location, or every location of an account-level invite, then becomes reachable
+ * and is added as a client by the next import.
+ */
+export async function acceptInvitationAsNew(deps: Deps, invitation: GbpInvitation): Promise<void> {
+  const connection = await agencyConnection(deps, invitation.workspaceId);
+  if (!connection) throw new ConnectError("no_connection", "Connect the agency Google account first");
+  await sessionFor(deps, connection).acceptInvitation(invitation.invitationName);
+  await deps.db.gbpInvitation.update({
+    where: { id: invitation.id },
+    data: { status: "accepted", matchReason: "Accepted as a new client", resolvedAt: new Date() },
+  });
+}

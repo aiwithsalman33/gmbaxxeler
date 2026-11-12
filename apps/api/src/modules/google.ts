@@ -1,7 +1,7 @@
 import { decryptSecret, encryptSecret } from "@localpilot/crypto";
 import type { GoogleConnection } from "@localpilot/db";
 import { BUSINESS_SCOPE, GbpError, OAuthError } from "@localpilot/gbp";
-import { attachInviteLocations, autoConnectClient, autoConnectPending, needsConfirmation, reattachClients, scanLocations } from "@localpilot/services";
+import { attachInviteLocations, autoConnectClient, needsConfirmation, reattachClients, scanLocations, syncManagedLocations } from "@localpilot/services";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -55,8 +55,8 @@ export function googleRoutes(ctx: AppContext) {
     if (needsConfirmation(deps, connection)) return "mismatch";
     await reattachClients(deps, connection);
     await scanLocations(deps, connection);
-    // Clients added before Google was connected get connected now, without a click each.
-    await autoConnectPending(deps, connection.workspaceId);
+    // Waiting clients connect, and every other business the account manages becomes a client.
+    await syncManagedLocations(deps, connection.workspaceId);
     return "connected";
   }
 
@@ -176,7 +176,7 @@ export function googleRoutes(ctx: AppContext) {
         const connection = await scoped(request, request.params.id);
         const updated = await db.googleConnection.update({ where: { id: connection.id }, data: { mismatchConfirmedAt: new Date() } });
         await reattachClients(deps, updated);
-        await autoConnectPending(deps, updated.workspaceId);
+        await syncManagedLocations(deps, updated.workspaceId);
         return publicConnection(updated);
       });
 

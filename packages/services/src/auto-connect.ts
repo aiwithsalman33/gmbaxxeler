@@ -119,7 +119,7 @@ export async function autoConnectAllWorkspaces(deps: Deps): Promise<void> {
   const workspaces = await deps.db.googleConnection.findMany({ where: { status: "active" }, select: { workspaceId: true }, distinct: ["workspaceId"] });
   for (const { workspaceId } of workspaces) {
     try {
-      await autoConnectPending(deps, workspaceId);
+      await syncManagedLocations(deps, workspaceId);
     } catch (error) {
       deps.logger.error({ workspaceId, err: error instanceof Error ? error.message : "unknown" }, "auto connect failed");
     }
@@ -200,4 +200,60 @@ export async function autoConnectClient(deps: Deps, clientId: string): Promise<A
     }
     throw error;
   }
+}
+
+/**
+ * Brings in every business the agency account manages that has never been a client, so the
+ * Clients page shows them without picking each one. Skipped: locations someone removed (they
+ * keep their client row), and ones a waiting client could still be matched to by name.
+ * The first sync of each runs in the background, filling address, phone, stats and metrics.
+ */
+export async function autoImportLocations(deps: Deps, workspaceId: string): Promise<Client[]> {
+  if (!deps.autoImport) return [];
+  const connection = await agencyConnection(deps, workspaceId);
+  if (!connection) return [];
+  const locations = await listAccessibleLocations(deps, connection);
+  const known = new Set(
+    (await deps.db.client.findMany({ where: { workspaceId, gbpLocationId: { not: null } }, select: { gbpLocationId: true } })).map((client) => client.gbpLocationId),
+  );
+  const fresh = locations.filter((location) => !known.has(location.locationId));
+  if (fresh.length === 0) return [];
+
+  const waiting = await deps.db.client.findMany({ where: { workspaceId, status: { in: [...PENDING_STATUSES] } } });
+  const reserved = new Set<string>();
+  const candidates = fresh.map((location) => ({ connection, location }));
+  for (const client of waiting) {
+    const pick = pickLocation(client, candidates);
+    if (pick.kind === "choose") pick.targets.forEach((target) => reserved.add(target.location.locationId));
+  }
+
+  const imported: Client[] = [];
+  for (const location of fresh) {
+    if (reserved.has(location.locationId)) continue;
+    const client = await deps.db.client.create({
+      data: {
+        workspaceId,
+        name: location.title,
+        address: location.address,
+        contactPhone: location.phone,
+        status: "connected",
+        connectionId: connection.id,
+        gbpAccountId: location.accountId,
+        gbpLocationId: location.locationId,
+        matchMethod: "import",
+        connectedAt: new Date(),
+      },
+    });
+    await deps.enqueueConnect(client.id);
+    imported.push(client);
+  }
+  if (imported.length) deps.logger.info({ workspaceId, imported: imported.length }, "imported managed locations");
+  return imported;
+}
+
+/** Waiting clients first (they may own a location), then everything else the account manages. */
+export async function syncManagedLocations(deps: Deps, workspaceId: string): Promise<{ connected: number; imported: number }> {
+  const connected = await autoConnectPending(deps, workspaceId);
+  const imported = (await autoImportLocations(deps, workspaceId)).length;
+  return { connected, imported };
 }

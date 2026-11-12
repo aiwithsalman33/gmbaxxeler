@@ -44,6 +44,8 @@ export async function createHarness(overrides: Record<string, string> = {}, opti
     AI_ADAPTER: "mock",
     MOCK_SAMPLE_DATA: "true",
     ENABLE_CLIENT_OAUTH_LINKS: "true",
+    // Most tests pick locations by hand; the auto-import tests switch this back on.
+    AUTO_IMPORT_LOCATIONS: "false",
     RATE_LIMIT_MAX: "100000",
     LOGIN_RATE_LIMIT_MAX: "100000",
     ...overrides,

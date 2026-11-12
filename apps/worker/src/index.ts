@@ -98,6 +98,7 @@ const deps: Deps = {
   },
   googleEnv: { clientId: process.env.GOOGLE_CLIENT_ID || undefined, clientSecret: process.env.GOOGLE_CLIENT_SECRET || undefined },
   googleHttp: fetch,
+  autoImport: process.env.AUTO_IMPORT_LOCATIONS !== "false",
   agencyEmail,
 };
 

@@ -100,10 +100,42 @@ describe("agency connection", () => {
     expect((await connect()).searchParams.get("google")).toBe("mismatch");
     const [connection] = (await api("GET", "/google/connections")).json();
     expect(connection).toMatchObject({ needsConfirmation: true });
-    expect((await api("GET", "/locations")).json()).toEqual([]);
+    // Not an empty list: that hid why no businesses showed up.
+    const blocked = await api("GET", "/locations");
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().error).toMatchObject({ code: "agency_unconfirmed" });
+    expect(blocked.json().error.message).toContain("someone-else@gmail.com");
     await api("POST", `/google/connections/${connection.id}/confirm-mismatch`);
     expect((await api("GET", "/google/connections")).json()[0].needsConfirmation).toBe(false);
     expect((await api("GET", "/locations")).json()).toHaveLength(10);
+  });
+
+  it("imports every managed business once the account is confirmed, and never brings back a removed one", async () => {
+    h.ctx.deps.autoImport = true;
+    try {
+      google.options.email = "someone-else@gmail.com";
+      await connect();
+      const [connection] = (await api("GET", "/google/connections")).json();
+      expect((await api("GET", "/clients")).json()).toEqual([]);
+
+      await api("POST", `/google/connections/${connection.id}/confirm-mismatch`);
+      const clients = (await api("GET", "/clients")).json();
+      expect(clients).toHaveLength(10);
+      expect(clients.every((c: { status: string; matchMethod: string }) => c.status === "connected" && c.matchMethod === "import")).toBe(true);
+
+      await api("DELETE", `/clients/${clients[0].id}`);
+      expect((await api("POST", "/clients/check-invitations")).json()).toMatchObject({ imported: 0 });
+      expect((await api("GET", "/clients")).json()).toHaveLength(9);
+    } finally {
+      h.ctx.deps.autoImport = false;
+    }
+  });
+
+  it("records why a scan failed, so the Clients page can show it", async () => {
+    google.options.quotaZero = true;
+    await connect();
+    const [connection] = (await api("GET", "/google/connections")).json();
+    expect(connection.lastError).toMatch(/not approved/i);
   });
 
   it("lists every location across accounts and pages", async () => {

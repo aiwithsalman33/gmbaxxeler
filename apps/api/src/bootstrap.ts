@@ -67,6 +67,7 @@ export function createContext(
       googleEnv: { clientId: env.GOOGLE_CLIENT_ID || undefined, clientSecret: env.GOOGLE_CLIENT_SECRET || undefined },
       googleHttp,
       agencyEmail,
+      autoImport: env.AUTO_IMPORT_LOCATIONS,
   };
   return { env, db, jwtKey: new TextEncoder().encode(env.JWT_SECRET), stopQueue: async () => queue?.stop(), storage, deps };
 }

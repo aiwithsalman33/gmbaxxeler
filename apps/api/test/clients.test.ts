@@ -207,6 +207,26 @@ describe("auto connect after adding a client", () => {
   });
 });
 
+describe("invitations from businesses that aren't clients yet", () => {
+  it("accepts one as a new client", async () => {
+    h.ctx.deps.autoImport = true;
+    try {
+      await api("POST", "/dev/mock/invitations", { locationName: "Marina Bay Cafe", address: "2 Beach Road, Chennai" });
+      await api("POST", "/clients/check-invitations");
+      const [invitation] = (await api("GET", "/invitations")).json();
+      expect(invitation).toMatchObject({ locationName: "Marina Bay Cafe", status: "needs_review" });
+
+      const accepted = await api("POST", `/invitations/${invitation.id}/accept-new`);
+      expect(accepted.statusCode).toBe(200);
+      expect((await api("GET", "/invitations")).json()).toEqual([]);
+      const client = (await api("GET", "/clients")).json().find((c: { name: string }) => c.name === "Marina Bay Cafe");
+      expect(client).toMatchObject({ status: "connected", matchMethod: "import", address: "2 Beach Road, Chennai" });
+    } finally {
+      h.ctx.deps.autoImport = false;
+    }
+  });
+});
+
 describe("reminders", () => {
   it("sends day 2 and day 5 once each, then stops on connect", async () => {
     const client = await addClient("Harbor View Dental");
@@ -369,7 +389,8 @@ describe("demo data", () => {
     await resetDb(prod);
     const session = await login(prod);
     const response = await prod.app.inject({ method: "GET", url: "/api/v1/locations/unattached", cookies: session });
-    expect(response.json()).toEqual([]);
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("no_connection");
     await prod.app.close();
     await prod.ctx.db.$disconnect();
   });
