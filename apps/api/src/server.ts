@@ -1,7 +1,7 @@
-import { removeAllDemoData } from "@localpilot/services";
+import { removeMockData } from "@localpilot/services";
 import { buildApp } from "./app";
 import { createContext } from "./bootstrap";
-import { loadEnv } from "./config";
+import { loadEnv, productionOverrides } from "./config";
 import { seedAdmin } from "./seed";
 import { failureLine, failureText, startupLog } from "./startup";
 
@@ -27,13 +27,18 @@ async function start() {
   // A failed seed only affects that account, so the app still starts.
   await seedAdmin(ctx).then(startupLog, (error: unknown) => startupLog(`Owner account skipped: ${failureText(error)}`));
 
-  if (env.APP_ENV === "production") {
-    // Demo businesses must never show in production, including ones seeded before this rule existed.
-    await removeAllDemoData(ctx.deps).then(
-      (r) => startupLog(r.clients || r.mockLocations ? `Removed demo data: ${r.clients} clients, ${r.images} images, ${r.mockLocations} mock locations` : "No demo data found"),
-      (error: unknown) => startupLog(`Demo data cleanup skipped: ${failureText(error)}`),
+  for (const override of productionOverrides) startupLog(override);
+  if (ctx.deps.gbp.name === "real") {
+    // Nothing simulated may survive the switch to real Google, including rows from earlier mock deploys.
+    await removeMockData(ctx.deps).then(
+      (r) =>
+        startupLog(
+          r.clients || r.connections || r.clientsReset || r.simulatedJobs || r.mockPosts || r.mockLocations
+            ? `Removed mock data: ${r.clients} demo clients, ${r.connections} fake Google connections, ${r.clientsReset} clients set back to waiting, ${r.simulatedJobs} simulated jobs, ${r.mockPosts} mock drafts`
+            : "No mock data found",
+        ),
+      (error: unknown) => startupLog(`Mock data cleanup skipped: ${failureText(error)}`),
     );
-    if (env.MOCK_SAMPLE_DATA) startupLog("MOCK_SAMPLE_DATA=true is ignored in production");
   }
 
   step = `API server on port ${env.PORT}`;

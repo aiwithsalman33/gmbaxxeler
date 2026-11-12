@@ -1,7 +1,7 @@
 import { decryptSecret, encryptSecret } from "@localpilot/crypto";
 import type { GoogleConnection } from "@localpilot/db";
 import { BUSINESS_SCOPE, GbpError, OAuthError } from "@localpilot/gbp";
-import { attachInviteLocations, needsConfirmation, reattachClients, scanLocations } from "@localpilot/services";
+import { attachInviteLocations, autoConnectClient, autoConnectPending, needsConfirmation, reattachClients, scanLocations } from "@localpilot/services";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -55,16 +55,26 @@ export function googleRoutes(ctx: AppContext) {
     if (needsConfirmation(deps, connection)) return "mismatch";
     await reattachClients(deps, connection);
     await scanLocations(deps, connection);
+    // Clients added before Google was connected get connected now, without a click each.
+    await autoConnectPending(deps, connection.workspaceId);
     return "connected";
   }
 
-  async function finishInvite(state: ConsumedState, code: string): Promise<void> {
+  /** Returns the result for an admin sign-in, or null for a client's own sign-in link. */
+  async function finishInvite(state: ConsumedState, code: string): Promise<string | null> {
     const invite = await db.clientInvite.findFirst({ where: { id: state.inviteId, workspaceId: state.workspaceId } });
     if (!invite) throw new ApiError(404, "invite_not_found", "Invite not found");
     const client = invite.clientId ? await db.client.findUnique({ where: { id: invite.clientId } }) : null;
     const connection = await storeConnection(state, code, client?.name ?? null);
-    await attachInviteLocations(deps, connection, invite.clientId);
     await db.clientInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date(), connectionId: connection.id } });
+    if (!state.userId) {
+      await attachInviteLocations(deps, connection, invite.clientId);
+      return null;
+    }
+    // An admin signed in with a Manager account: match strictly, and offer a choice when unsure.
+    if (!client) return "connected";
+    const outcome = await autoConnectClient(deps, client.id);
+    return outcome.status === "connected" ? "connected" : outcome.status === "choose" ? "choose" : "not_found";
   }
 
   function resultFor(failure: unknown): string | null {
@@ -106,21 +116,31 @@ export function googleRoutes(ctx: AppContext) {
       { schema: { querystring: z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }) } },
       async (request, reply) => {
         const { code, state: rawState, error } = request.query;
-        const finish = (result: string, invite = false) => reply.redirect(invite ? `${env.APP_URL}/invite/done?result=${result}` : `${env.APP_URL}/settings/google?google=${result}`);
         let state: ConsumedState;
         try {
           state = await consumeState(ctx, rawState ?? "");
         } catch {
-          return finish("expired");
+          return reply.redirect(`${env.APP_URL}/settings/google?google=expired`);
         }
         const invite = state.purpose === "invite";
+        // An admin connecting one client returns to the Clients page, not the client-facing page.
+        const adminInvite = invite && Boolean(state.userId);
+        const clientId =
+          adminInvite && state.inviteId ? (await db.clientInvite.findUnique({ where: { id: state.inviteId }, select: { clientId: true } }))?.clientId : null;
+        const finish = (result: string, isInvite = false) =>
+          reply.redirect(
+            adminInvite
+              ? `${env.APP_URL}/clients?google=${result}${clientId ? `&client=${clientId}` : ""}`
+              : isInvite
+                ? `${env.APP_URL}/invite/done?result=${result}`
+                : `${env.APP_URL}/settings/google?google=${result}`,
+          );
         if (state.purpose === "login") return finish("failed");
         if (error === "access_denied") return finish("denied", invite);
         if (error || !code) return finish("failed", invite);
         try {
-          if (invite) await finishInvite(state, code);
-          else return finish(await finishAgency(await storeConnection(state, code, null)));
-          return finish("connected", invite);
+          if (invite) return finish((await finishInvite(state, code)) ?? "connected", invite);
+          return finish(await finishAgency(await storeConnection(state, code, null)));
         } catch (failure) {
           const result = resultFor(failure);
           if (result) return finish(result, invite);
@@ -156,6 +176,7 @@ export function googleRoutes(ctx: AppContext) {
         const connection = await scoped(request, request.params.id);
         const updated = await db.googleConnection.update({ where: { id: connection.id }, data: { mismatchConfirmedAt: new Date() } });
         await reattachClients(deps, updated);
+        await autoConnectPending(deps, updated.workspaceId);
         return publicConnection(updated);
       });
 

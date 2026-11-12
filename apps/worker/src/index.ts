@@ -4,7 +4,7 @@ import { parseKey } from "@localpilot/crypto";
 import { createDb } from "@localpilot/db";
 import { createGbpAdapter, sampleDataAllowed } from "@localpilot/gbp";
 import { createMailProvider, Messenger } from "@localpilot/notify";
-import { checkConnections, deliverEmail, dispatchDueJobs, finishConnect, generateDueDrafts, materializeAll, MAIL_QUEUE, materializeAllSeo, pollAllWorkspaces, publishDueReplies, recordHeartbeat, recordJobRun, resolveCredentials, sendDueReminders, syncAllClients, syncAllReviews, type Deps, type MailJob } from "@localpilot/services";
+import { autoConnectAllWorkspaces, checkConnections, deliverEmail, dispatchDueJobs, finishConnect, generateDueDrafts, materializeAll, MAIL_QUEUE, materializeAllSeo, pollAllWorkspaces, publishDueReplies, recordHeartbeat, recordJobRun, resolveCredentials, sendDueReminders, syncAllClients, syncAllReviews, type Deps, type MailJob } from "@localpilot/services";
 import { Storage } from "@localpilot/storage";
 import PgBoss from "pg-boss";
 import pino from "pino";
@@ -15,7 +15,13 @@ const MAIL_RETRIES = { retryLimit: 3, retryBackoff: true, retryDelay: 30 };
 const CONNECT_QUEUE = "connect-client";
 
 const JOBS = {
-  "poll-invitations": { cron: "*/10 * * * *", run: (deps: Deps) => pollAllWorkspaces(deps) },
+  "poll-invitations": {
+    cron: "*/10 * * * *",
+    run: async (deps: Deps) => {
+      await pollAllWorkspaces(deps);
+      await autoConnectAllWorkspaces(deps);
+    },
+  },
   "send-client-reminders": { cron: "0 * * * *", run: (deps: Deps) => sendDueReminders(deps) },
   "sync-metrics": { cron: "0 2 * * *", run: (deps: Deps) => syncAllClients(deps) },
   "materialize-jobs": { cron: "5 * * * *", run: async (deps: Deps) => [await materializeAll(deps), await materializeAllSeo(deps)] },
@@ -41,12 +47,15 @@ const mailProvider = process.env.MAIL_PROVIDER === "smtp" ? "smtp" : "dev";
 const production = process.env.APP_ENV === "production";
 
 const agencyEmail = process.env.AGENCY_GOOGLE_EMAIL?.trim().toLowerCase() || null;
+// Same rule as the API: real Google and OpenAI unless a non-production stack asks for mock.
+const gbpAdapter = !production && process.env.GBP_ADAPTER === "mock" ? "mock" : "real";
+const aiAdapter = !production && process.env.AI_ADAPTER === "mock" ? "mock" : "openai";
 
 const deps: Deps = {
   db,
   logger,
   encryptionKey: parseKey(required("ENCRYPTION_KEY")),
-  aiAdapter: process.env.AI_ADAPTER === "mock" ? "mock" : "openai",
+  aiAdapter,
   storage: new Storage({
     endpoint: required("MINIO_ENDPOINT"),
     publicUrl: required("PUBLIC_MEDIA_URL"),
@@ -55,11 +64,11 @@ const deps: Deps = {
     bucket: required("MINIO_BUCKET"),
   }),
   gbp: createGbpAdapter({
-    adapter: process.env.GBP_ADAPTER === "real" ? "real" : "mock",
+    adapter: gbpAdapter,
     db,
     credentials: () => resolveCredentials(deps),
     maxQpm: Number(process.env.GOOGLE_MAX_QPM ?? 240),
-    mockSample: sampleDataAllowed(process.env.MOCK_SAMPLE_DATA === "true", process.env.APP_ENV),
+    mockSample: gbpAdapter === "mock" && sampleDataAllowed(process.env.MOCK_SAMPLE_DATA === "true", process.env.APP_ENV),
     mockEmail: agencyEmail,
   }),
   messenger: new Messenger({

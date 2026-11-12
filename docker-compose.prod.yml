@@ -9,9 +9,9 @@ x-app-env: &app-env
   PUBLIC_MEDIA_URL: ${PUBLIC_MEDIA_URL:-${APP_URL:-http://127.0.0.1:8080}/media}
   DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-localpilot}:${POSTGRES_PASSWORD:-localpilot}@postgres:5432/${POSTGRES_DB:-localpilot}}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:-ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=}
-  GBP_ADAPTER: ${GBP_ADAPTER:-mock}
-  MOCK_SAMPLE_DATA: ${MOCK_SAMPLE_DATA:-false}
-  AI_ADAPTER: ${AI_ADAPTER:-mock}
+  # Production always talks to real Google and OpenAI; mock values are ignored.
+  GBP_ADAPTER: real
+  AI_ADAPTER: openai
   MINIO_ENDPOINT: http://minio:9000
   MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-localpilot}
   MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-localpilot-dev-secret}

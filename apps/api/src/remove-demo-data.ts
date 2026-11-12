@@ -1,9 +1,10 @@
 /**
- * Deletes the built-in demo businesses from every workspace, with all their rows and files.
- * Production does this on every start; this script is for running it by hand:
+ * Removes everything mock mode created: demo businesses, fake Google connections, simulated
+ * posts and photos, mock AI drafts, and invented reviews and metrics. The API does this on every
+ * start with the real Google adapter; this script is for running it by hand:
  *   docker compose exec api node apps/api/dist/remove-demo-data.js
  */
-import { removeAllDemoData } from "@localpilot/services";
+import { removeMockData } from "@localpilot/services";
 import { createContext } from "./bootstrap";
 import { loadEnv } from "./config";
 import { failureText } from "./startup";
@@ -12,10 +13,13 @@ const log = (meta: object, message?: string) => process.stdout.write(`${JSON.str
 const ctx = createContext(loadEnv(), { info: log, warn: log, error: log }, () => undefined);
 
 try {
-  const result = await removeAllDemoData(ctx.deps);
-  process.stdout.write(`Removed ${result.clients} demo clients, ${result.images} images and ${result.mockLocations} mock locations\n`);
+  if (ctx.deps.gbp.name !== "real") throw new Error("GBP_ADAPTER is mock. Set GBP_ADAPTER=real first, or this removes the data mock mode is using.");
+  const r = await removeMockData(ctx.deps);
+  process.stdout.write(
+    `Removed ${r.clients} demo clients, ${r.images} images, ${r.connections} fake Google connections, ${r.simulatedJobs} simulated jobs and ${r.mockPosts} mock drafts; ${r.clientsReset} clients set back to waiting\n`,
+  );
 } catch (error) {
-  process.stderr.write(`Demo data cleanup failed: ${failureText(error)}\n`);
+  process.stderr.write(`Mock data cleanup failed: ${failureText(error)}\n`);
   process.exitCode = 1;
 } finally {
   await ctx.stopQueue();

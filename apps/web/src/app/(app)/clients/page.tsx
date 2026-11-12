@@ -3,9 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CloudDownload, Inbox, Link2, Plus, RefreshCw, Search, Send, ShieldCheck, Users, Wand2 } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { ClientCard, PendingClientRow, type ClientActions } from "./client-cards";
 import { AddClientDialog, GuideDialog, ImportDialog } from "./client-dialogs";
+import { ConnectClientDialog } from "./connect-dialog";
 import { useClients } from "@/components/client-switcher";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -22,6 +24,20 @@ import type { Client, ClientStatus, Connection, Invitation } from "@/lib/types";
 
 const PENDING = ["invited", "waiting_for_access"];
 const SEARCH_THRESHOLD = 6;
+
+/** Where Google sends the admin back after "Connect with Google" on one client. */
+const SIGN_IN_RESULTS: Record<string, { tone: "success" | "error" | "info"; text: string }> = {
+  connected: { tone: "success", text: "Google account connected" },
+  choose: { tone: "info", text: "Google account connected. Pick the right business." },
+  not_found: { tone: "info", text: "That Google account doesn't manage this business" },
+  denied: { tone: "error", text: "Google sign-in was cancelled" },
+  missing_permission: { tone: "error", text: "Business Profile permission wasn't granted. Tick the box on Google's screen." },
+  no_refresh_token: { tone: "error", text: "Google didn't return a refresh token. Remove LocalPilot from that account's third-party access and try again." },
+  expired: { tone: "error", text: "The sign-in took too long. Please try again." },
+  redirect_mismatch: { tone: "error", text: "Google rejected the redirect URL. Check Settings > Google." },
+  invalid_client: { tone: "error", text: "The Google client ID or secret is wrong. Check Settings > Google." },
+  quota_zero: { tone: "error", text: "Google hasn't approved Business Profile API access for this project yet." },
+};
 
 function ActionCard({ icon: Icon, title, body, children }: { icon: typeof Users; title: string; body: string; children: ReactNode }) {
   return (
@@ -73,6 +89,29 @@ export default function ClientsPage() {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [guideFor, setGuideFor] = useState<Client | null>(null);
+  const [connecting, setConnecting] = useState<Client | null>(null);
+  const [returnedClientId, setReturnedClientId] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Back from Google: say what happened, then reopen the connect step for that client.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("google");
+    if (!result) return;
+    const message = SIGN_IN_RESULTS[result] ?? { tone: "error", text: "Google sign-in didn't work. Please try again." };
+    if (message.tone === "success") toast.success(message.text);
+    else if (message.tone === "info") toast.message(message.text);
+    else toast.error(message.text);
+    setReturnedClientId(params.get("client"));
+    router.replace("/clients");
+  }, [router]);
+
+  useEffect(() => {
+    if (!returnedClientId || !clients.data) return;
+    const client = clients.data.find((candidate) => candidate.id === returnedClientId);
+    setReturnedClientId(null);
+    if (client) setConnecting(client);
+  }, [returnedClientId, clients.data]);
   const [removing, setRemoving] = useState<Client | null>(null);
   const [matchTo, setMatchTo] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
@@ -135,6 +174,7 @@ export default function ClientsPage() {
 
   const actions: ClientActions = {
     onGuide: setGuideFor,
+    onConnect: setConnecting,
     onPause: (client, paused) => pause.mutate({ id: client.id, paused }),
     onRemove: setRemoving,
     onSimulate: mock.data?.enabled ? (client) => simulate.mutate(client.id) : undefined,
@@ -181,8 +221,17 @@ export default function ClientsPage() {
         onOpenChange={setAdding}
         onCreated={(client) => {
           setAdding(false);
-          setGuideFor(client);
+          setConnecting(client);
           refreshAll();
+        }}
+      />
+      <ConnectClientDialog
+        client={connecting}
+        onClose={() => setConnecting(null)}
+        onChanged={refreshAll}
+        onSendGuide={(client) => {
+          setConnecting(null);
+          setGuideFor(client);
         }}
       />
       {agency && <ImportDialog open={importing} onOpenChange={setImporting} connectionId={agency.id} />}

@@ -39,6 +39,8 @@ export async function createHarness(overrides: Record<string, string> = {}, opti
     MINIO_ACCESS_KEY: process.env.TEST_S3_ACCESS_KEY ?? "localpilot",
     MINIO_SECRET_KEY: process.env.TEST_S3_SECRET_KEY ?? "localpilot-dev-secret",
     MINIO_BUCKET: "localpilot-test",
+    // The tests stand in for Google with the mock adapter; the app itself defaults to real.
+    GBP_ADAPTER: "mock",
     AI_ADAPTER: "mock",
     MOCK_SAMPLE_DATA: "true",
     ENABLE_CLIENT_OAUTH_LINKS: "true",

@@ -49,6 +49,23 @@ export interface GbpLocation {
   clientId: string | null;
 }
 
+export interface LocationCandidate extends Omit<GbpLocation, "clientId"> {
+  googleAccountEmail: string;
+}
+
+/** What POST /clients/:id/auto-connect found. */
+export type AutoConnectResult =
+  | { status: "connected"; client: Client; locationTitle: string | null; googleAccountEmail: string | null }
+  | { status: "choose"; client: Client; candidates: LocationCandidate[] }
+  | {
+      status: "waiting";
+      client: Client;
+      reason: "no_agency" | "not_found" | "google_error";
+      message: string | null;
+      agencyEmail: string | null;
+      canSignInAs: string | null;
+    };
+
 export interface Connection {
   id: string;
   googleAccountEmail: string;

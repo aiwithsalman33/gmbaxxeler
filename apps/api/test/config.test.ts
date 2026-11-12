@@ -83,9 +83,10 @@ describe("environment validation", () => {
     expect(problems({ ...valid, GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "" })).toEqual([]);
   });
 
-  it("allows mock mode in production, but not mock AI with real Google", () => {
+  it("never simulates Google or AI in production, whatever the env says", () => {
     expect(problems({ ...valid, GBP_ADAPTER: "mock", AI_ADAPTER: "mock" })).toEqual([]);
-    expect(problems({ ...valid, GBP_ADAPTER: "real", AI_ADAPTER: "mock" }).join("\n")).toContain("AI_ADAPTER cannot be mock");
+    expect(loadEnv({ ...valid, GBP_ADAPTER: "mock", AI_ADAPTER: "mock", MOCK_SAMPLE_DATA: "true" })).toMatchObject({ GBP_ADAPTER: "real", AI_ADAPTER: "openai", MOCK_SAMPLE_DATA: false });
+    expect(loadEnv({ ...valid, APP_ENV: "development", GBP_ADAPTER: undefined })).toMatchObject({ GBP_ADAPTER: "real" });
   });
 
   it("starts in production with no SMTP, Google or OpenAI settings", () => {

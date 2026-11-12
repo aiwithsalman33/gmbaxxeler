@@ -1,5 +1,6 @@
 export * from "./ai";
 export * from "./alerts";
+export * from "./auto-connect";
 export * from "./context";
 export * from "./demo-data";
 export * from "./guide";
